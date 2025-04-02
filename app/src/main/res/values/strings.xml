@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Tekisuto</string>
     <string name="crop_image">Crop Image</string>
 
@@ -18,11 +18,11 @@
     <string name="accessibility_service_summary">Touch the accessibility button to scan any text on screen</string>
     
     <!-- OCR Language Settings -->
-    <string name="ocr_settings_title">OCR Settings</string>
+    <string name="ocr_settings_title" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
     <string name="ocr_language_title">OCR Language</string>
     <string name="ocr_language_summary">Select the language for text recognition</string>
     <string name="ocr_language_default">latin</string>
-    <string name="ocr_settings">OCR Settings</string>
+    <string name="ocr_settings" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
     
     <string-array name="ocr_language_entries">
         <item>Latin (English, Spanish, French, etc.)</item>
@@ -75,8 +75,8 @@
     <string name="no_dictionary_results">No dictionary entries found</string>
     <string name="dictionary_stats">Dictionary contains %1$d entries</string>
     <string name="search_dictionary_button">Search</string>
-    <string name="clear_dictionary">Clear Dictionary</string>
-    <string name="clear_dictionary_title">Clear Dictionary</string>
+    <string name="clear_dictionary" tools:ignore="DuplicateCrowdInStrings">Clear Dictionary</string>
+    <string name="clear_dictionary_title" tools:ignore="DuplicateCrowdInStrings">Clear Dictionary</string>
     <string name="clear_dictionary_message">Are you sure you want to delete all dictionary entries? This action cannot be undone.</string>
     <string name="clear">Clear</string>
     <string name="dictionary_cleared">Dictionary cleared successfully</string>

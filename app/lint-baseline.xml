@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.8.1" type="baseline" client="gradle" dependencies="false" name="AGP (8.8.1)" variant="fatal" version="8.8.1">
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="        val timeStamp = SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;, Locale.getDefault()).format(Date())"
+        errorLine2="                                                                                        ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/service/AccessibilityOcrService.kt"
+            line="257"
+            column="89"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="        val timeStamp = SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;, Locale.getDefault()).format(Date())"
+        errorLine2="                                                                                        ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/ui/ImageCropActivity.kt"
+            line="142"
+            column="89"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="            val timeStamp = SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;, Locale.getDefault()).format(Date())"
+        errorLine2="                                                                                            ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="165"
+            column="93"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="            val destinationUri = Uri.fromFile(File(cacheDir, &quot;cropped_&quot; + System.currentTimeMillis() + &quot;.jpg&quot;))"
+        errorLine2="                                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/ui/ImageCropActivity.kt"
+            line="51"
+            column="75"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="            val tempDir = File(context.cacheDir, &quot;dictionary_import_${System.currentTimeMillis()}&quot;)"
+        errorLine2="                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/MainViewModel.kt"
+            line="599"
+            column="71"/>
+    </issue>
+
+</issues>
