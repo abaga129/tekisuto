@@ -6,13 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.util.Log
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
+// Removed unused imports
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +27,7 @@ import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.ui.adapter.DictionaryMatchAdapter
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
+import com.abaga129.tekisuto.util.WordTokenizerFlow
 import com.abaga129.tekisuto.viewmodel.OCRResultViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,7 +37,8 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
 
     private lateinit var viewModel: OCRResultViewModel
     private lateinit var screenshotImageView: ImageView
-    private lateinit var ocrTextView: TextView
+    private lateinit var textContainer: ViewGroup
+    private var fullOcrText: String = ""
     private lateinit var copyButton: Button
     private lateinit var saveButton: Button
     private lateinit var closeButton: Button
@@ -49,32 +52,8 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
     
     private lateinit var ankiDroidHelper: AnkiDroidHelper
     
-    private var actionMode: ActionMode? = null
-    private val actionModeCallback = object : ActionMode.Callback {
-        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-            mode.menuInflater.inflate(R.menu.text_selection_menu, menu)
-            return true
-        }
-
-        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
-            return false
-        }
-
-        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
-            return when (item.itemId) {
-                R.id.action_lookup_selected -> {
-                    searchSelectedText()
-                    mode.finish()
-                    true
-                }
-                else -> false
-            }
-        }
-
-        override fun onDestroyActionMode(mode: ActionMode) {
-            actionMode = null
-        }
-    }
+    // No longer using translation popup
+    private var ocrLanguage: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,10 +65,11 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Initialize ViewModel
         viewModel = ViewModelProvider(this).get(OCRResultViewModel::class.java)
         viewModel.initDictionaryRepository(applicationContext)
+        viewModel.initTranslationHelper(applicationContext)
 
         // Initialize views
         screenshotImageView = findViewById(R.id.screenshot_image_view)
-        ocrTextView = findViewById(R.id.ocr_text_view)
+        textContainer = findViewById(R.id.text_container)
         copyButton = findViewById(R.id.copy_button)
         saveButton = findViewById(R.id.save_button)
         closeButton = findViewById(R.id.close_button)
@@ -99,17 +79,6 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         noMatchesTextView = findViewById(R.id.no_matches_text)
         selectionHintTextView = findViewById(R.id.selection_hint)
         ankiButton = findViewById(R.id.configure_anki_button)
-        
-        // Setup text selection action mode
-        ocrTextView.customSelectionActionModeCallback = actionModeCallback
-        
-        // Show context menu on long press
-        ocrTextView.setOnLongClickListener {
-            if (ocrTextView.hasSelection() && actionMode == null) {
-                actionMode = startActionMode(actionModeCallback)
-            }
-            false // Return false to allow default long click behavior
-        }
 
         // Set up RecyclerView
         dictionaryMatchAdapter = DictionaryMatchAdapter()
@@ -129,9 +98,10 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Get data from intent
         val ocrText = intent.getStringExtra("OCR_TEXT") ?: ""
         val screenshotPath = intent.getStringExtra("SCREENSHOT_PATH")
+        ocrLanguage = intent.getStringExtra("OCR_LANGUAGE")
 
         // Set data to ViewModel and adapter
-        viewModel.setOcrText(ocrText)
+        viewModel.setOcrText(ocrText, ocrLanguage)
         dictionaryMatchAdapter.setOcrText(ocrText)
         
         if (screenshotPath != null) {
@@ -145,11 +115,17 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Set up button click listeners
         setupClickListeners()
     }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Nothing special to clean up
+    }
 
     private fun setupObservers() {
         // Observe OCR text
         viewModel.ocrText.observe(this) { text ->
-            ocrTextView.text = text
+            fullOcrText = text
+            setupClickableText(text)
         }
 
         // Observe screenshot path
@@ -163,10 +139,18 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Observe dictionary matches
         viewModel.dictionaryMatches.observe(this) { matches ->
             // Log dictionary matches for debugging
-            android.util.Log.d("OCRResultActivity", "Received ${matches.size} dictionary matches")
+            Log.d("OCRResultActivity", "Received ${matches.size} dictionary matches")
             matches.take(3).forEachIndexed { index, entry ->
-                android.util.Log.d("OCRResultActivity", "Match $index: term=${entry.term}, " +
+                Log.d("OCRResultActivity", "Match $index: term=${entry.term}, " +
                         "definition=${entry.definition.take(50)}${if(entry.definition.length > 50) "..." else ""}")
+            }
+            
+            // Clear all highlights first
+            WordTokenizerFlow.clearHighlights()
+            
+            // Highlight matched words
+            matches.forEach { entry ->
+                WordTokenizerFlow.highlightWord(entry.term)
             }
             
             dictionaryMatchAdapter.submitList(matches)
@@ -184,7 +168,47 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         viewModel.saveResult.observe(this) { result ->
             Toast.makeText(this, result, Toast.LENGTH_SHORT).show()
         }
+        
+        // Note: We're not using word translation popups anymore since tapping performs dictionary lookup
+        // Keeping this commented out in case we want to restore it later
+        /*
+        viewModel.wordTranslation.observe(this) { (word, translation) ->
+            showWordTranslationPopup(word, translation)
+        }
+        
+        viewModel.isTranslatingWord.observe(this) { isTranslating ->
+            // Could show a mini loading indicator if needed
+        }
+        */
     }
+    
+    /**
+     * Set up the OCR text as clickable word buttons
+     */
+    private fun setupClickableText(text: String) {
+        // Change hint text to indicate tappable words
+        selectionHintTextView.text = getString(R.string.tap_word_hint)
+        
+        // Create flow layout with word buttons
+        WordTokenizerFlow.createClickableWordsFlow(
+            context = this,
+            parentViewGroup = textContainer,
+            text = text,
+            onWordClick = { word ->
+                // Handle word click - lookup in dictionary
+                viewModel.findDictionaryMatches(word)
+                // Show a brief message
+                Toast.makeText(this, "Looking up: $word", Toast.LENGTH_SHORT).show()
+            },
+            onWordLongClick = { word ->
+                // Long click can still do dictionary lookup for consistency
+                viewModel.findDictionaryMatches(word)
+                true // Consume the event
+            }
+        )
+    }
+    
+    // Word translation popup method removed as we now perform dictionary lookup on tap
 
     private fun setupClickListeners() {
         // Search dictionary button
@@ -194,7 +218,7 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
 
         // Copy button
         copyButton.setOnClickListener {
-            copyToClipboard(viewModel.ocrText.value ?: "")
+            copyToClipboard(fullOcrText)
         }
 
         // Save button
@@ -217,25 +241,8 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
      * Searches the dictionary with selected text or full OCR text if no selection
      */
     private fun searchSelectedText() {
-        // Check if there's selected text
-        val selectedText = ocrTextView.text?.substring(
-            ocrTextView.selectionStart.takeIf { it >= 0 } ?: 0,
-            ocrTextView.selectionEnd.takeIf { it >= 0 && it <= ocrTextView.text.length }
-                ?: ocrTextView.text.length
-        )
-
-        // Only use selected text if something is actually selected
-        val textToSearch = if (ocrTextView.hasSelection() && !selectedText.isNullOrBlank()) {
-            android.util.Log.d("OCRResultActivity", "Searching for selected text: $selectedText")
-            selectedText.toString().also {
-                Toast.makeText(this, "Searching for: $it", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            android.util.Log.d("OCRResultActivity", "No text selected, searching full OCR text")
-            null
-        }
-
-        viewModel.findDictionaryMatches(textToSearch)
+        // Search the full OCR text since we're using buttons now
+        viewModel.findDictionaryMatches(null)
     }
 
     private fun copyToClipboard(text: String) {
@@ -268,7 +275,8 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
                         definition = entry.definition,
                         partOfSpeech = entry.partOfSpeech,
                         context = viewModel.ocrText.value ?: "",
-                        screenshotPath = viewModel.screenshotPath.value
+                        screenshotPath = viewModel.screenshotPath.value,
+                        translation = viewModel.translatedText.value ?: ""
                     )
                 }
                 

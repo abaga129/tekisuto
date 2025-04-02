@@ -8,4 +8,9 @@
     
     <!-- Dictionary matches -->
     <dimen name="dictionary_item_spacing">4dp</dimen>
+    
+    <!-- Word button dimensions -->
+    <dimen name="word_button_padding_horizontal">8dp</dimen>
+    <dimen name="word_button_padding_vertical">4dp</dimen>
+    <dimen name="flow_layout_padding">8dp</dimen>
 </resources>

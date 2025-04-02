@@ -98,6 +98,9 @@ dependencies {
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("com.github.yalantis:ucrop:2.2.8")  // Image cropping library
     implementation("com.github.ankidroid:Anki-Android:api-v1.1.0")
+    implementation("com.google.mlkit:translate:17.0.2")  // ML Kit for Translation
+    implementation("com.google.mlkit:language-id:17.0.4")  // ML Kit Language Identification
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.1")  // For Tasks.await support
     
     // Add multidex support
     implementation("androidx.multidex:multidex:2.0.1")

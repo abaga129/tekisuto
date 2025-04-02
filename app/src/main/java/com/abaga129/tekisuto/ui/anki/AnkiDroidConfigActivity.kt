@@ -33,6 +33,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
     private lateinit var screenshotFieldSpinner: Spinner
     private lateinit var contextFieldSpinner: Spinner
     private lateinit var partOfSpeechFieldSpinner: Spinner
+    private lateinit var translationFieldSpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var testButton: Button
     
@@ -77,6 +78,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         screenshotFieldSpinner = findViewById(R.id.screenshot_field_spinner)
         contextFieldSpinner = findViewById(R.id.context_field_spinner)
         partOfSpeechFieldSpinner = findViewById(R.id.part_of_speech_field_spinner)
+        translationFieldSpinner = findViewById(R.id.translation_field_spinner)
         saveButton = findViewById(R.id.save_config_button)
         testButton = findViewById(R.id.test_anki_button)
         
@@ -121,6 +123,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         screenshotFieldSpinner.isEnabled = false
         contextFieldSpinner.isEnabled = false
         partOfSpeechFieldSpinner.isEnabled = false
+        translationFieldSpinner.isEnabled = false
         saveButton.isEnabled = false
         testButton.isEnabled = false
     }
@@ -264,6 +267,9 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
                     if (fieldMappings.partOfSpeech < fields.size) {
                         partOfSpeechFieldSpinner.setSelection(fieldMappings.partOfSpeech + 1)
                     }
+                    if (fieldMappings.translation < fields.size) {
+                        translationFieldSpinner.setSelection(fieldMappings.translation + 1)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -292,6 +298,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         screenshotFieldSpinner.adapter = adapter
         contextFieldSpinner.adapter = adapter
         partOfSpeechFieldSpinner.adapter = adapter
+        translationFieldSpinner.adapter = adapter
     }
     
     private fun saveConfiguration() {
@@ -312,6 +319,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         val screenshotField = screenshotFieldSpinner.selectedItemPosition - 1
         val contextField = contextFieldSpinner.selectedItemPosition - 1
         val partOfSpeechField = partOfSpeechFieldSpinner.selectedItemPosition - 1
+        val translationField = translationFieldSpinner.selectedItemPosition - 1
         
         // Validate that at least word and definition fields are selected
         if (wordField < 0) {
@@ -333,7 +341,8 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
             definitionField,
             screenshotField,
             contextField,
-            partOfSpeechField
+            partOfSpeechField,
+            translationField
         )
         
         Toast.makeText(this, getString(R.string.config_saved), Toast.LENGTH_SHORT).show()
@@ -355,7 +364,8 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
                         "Test word from Tekisuto",
                         "Test",
                         "This is a test export from Tekisuto app.",
-                        null
+                        null,
+                        "Test (Translation)"
                     )
                 }
                 

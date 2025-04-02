@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Override specific colors for night mode -->
+    <color name="card_background">#2A3C44</color>
+    <color name="light_gray">#3A4A54</color>
+    <color name="reading_text_color">#A9C6D9</color>
+    <color name="part_of_speech_color">#8AA8BC</color>
+    
+    <!-- Override text colors for better night mode visibility -->
+    <color name="text_dark">#FFFFFF</color> <!-- Make "dark" text white in dark mode -->
+    <color name="black">#FFFFFF</color> <!-- Override black to be white in dark mode -->
+    
+    <!-- Word button background adjustments for night mode -->
+    <color name="clickable_word_background">#404F7F98</color>
+    <color name="clickable_word_border">#7A4F7F98</color>
+</resources>

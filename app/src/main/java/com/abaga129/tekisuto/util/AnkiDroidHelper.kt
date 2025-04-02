@@ -29,6 +29,7 @@ class AnkiDroidHelper(private val context: Context) {
         const val PREF_FIELD_SCREENSHOT = "field_screenshot"
         const val PREF_FIELD_CONTEXT = "field_context"
         const val PREF_FIELD_PART_OF_SPEECH = "field_part_of_speech"
+        const val PREF_FIELD_TRANSLATION = "field_translation"
         const val DEFAULT_FIELD_VALUE = "0"
     }
 
@@ -91,7 +92,8 @@ class AnkiDroidHelper(private val context: Context) {
         fieldDefinition: Int,
         fieldScreenshot: Int,
         fieldContext: Int,
-        fieldPartOfSpeech: Int
+        fieldPartOfSpeech: Int,
+        fieldTranslation: Int
     ) {
         prefs.edit().apply {
             putLong(PREF_DECK_ID, deckId)
@@ -102,6 +104,7 @@ class AnkiDroidHelper(private val context: Context) {
             putInt(PREF_FIELD_SCREENSHOT, fieldScreenshot)
             putInt(PREF_FIELD_CONTEXT, fieldContext)
             putInt(PREF_FIELD_PART_OF_SPEECH, fieldPartOfSpeech)
+            putInt(PREF_FIELD_TRANSLATION, fieldTranslation)
             apply()
         }
     }
@@ -130,7 +133,8 @@ class AnkiDroidHelper(private val context: Context) {
             definition = prefs.getInt(PREF_FIELD_DEFINITION, 0),
             screenshot = prefs.getInt(PREF_FIELD_SCREENSHOT, 0),
             context = prefs.getInt(PREF_FIELD_CONTEXT, 0),
-            partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0)
+            partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0),
+            translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0)
         )
     }
 
@@ -143,7 +147,8 @@ class AnkiDroidHelper(private val context: Context) {
         definition: String,
         partOfSpeech: String,
         context: String,
-        screenshotPath: String?
+        screenshotPath: String?,
+        translation: String = ""
     ): Boolean {
         if (!isAnkiDroidAvailable()) {
             Log.e(TAG, "AnkiDroid not available")
@@ -162,14 +167,14 @@ class AnkiDroidHelper(private val context: Context) {
         try {
             // Try using the API first
             return addNoteWithApi(
-                word, reading, definition, partOfSpeech, context, screenshotPath,
+                word, reading, definition, partOfSpeech, context, screenshotPath, translation,
                 deckId, modelId, fieldMappings
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error using AnkiDroid API, falling back to Intent method", e)
             // Fallback to using Intent if API fails
             return addNoteWithIntent(
-                word, reading, definition, partOfSpeech, context,
+                word, reading, definition, partOfSpeech, context, translation,
                 getDeckName(deckId), getModelName(modelId), fieldMappings
             )
         }
@@ -185,6 +190,7 @@ class AnkiDroidHelper(private val context: Context) {
         partOfSpeech: String,
         context: String,
         screenshotPath: String?,
+        translation: String,
         deckId: Long,
         modelId: Long,
         fieldMappings: FieldMappings
@@ -200,33 +206,44 @@ class AnkiDroidHelper(private val context: Context) {
         
         // Map fields only when the mapping is valid
         try {
-            // Word field
-            if (fieldMappings.word < fields.size) {
+            // Word field (required)
+            if (fieldMappings.word >= 0 && fieldMappings.word < fields.size) {
                 fieldValues[fields[fieldMappings.word]] = word
+            } else {
+                // Word field is required, if not available, use the first field
+                fieldValues[fields[0]] = word
             }
             
-            // Reading field
-            if (fieldMappings.reading < fields.size && reading.isNotBlank()) {
+            // Reading field (optional)
+            if (fieldMappings.reading >= 0 && fieldMappings.reading < fields.size && reading.isNotBlank()) {
                 fieldValues[fields[fieldMappings.reading]] = reading
             }
             
-            // Definition field
-            if (fieldMappings.definition < fields.size) {
+            // Definition field (required)
+            if (fieldMappings.definition >= 0 && fieldMappings.definition < fields.size) {
                 fieldValues[fields[fieldMappings.definition]] = definition
+            } else if (fields.size > 1) {
+                // Definition field is required, if not available, use the second field
+                fieldValues[fields[1]] = definition
             }
             
-            // Part of speech field
-            if (fieldMappings.partOfSpeech < fields.size && partOfSpeech.isNotBlank()) {
+            // Part of speech field (optional)
+            if (fieldMappings.partOfSpeech >= 0 && fieldMappings.partOfSpeech < fields.size && partOfSpeech.isNotBlank()) {
                 fieldValues[fields[fieldMappings.partOfSpeech]] = partOfSpeech
             }
             
-            // Context field
-            if (fieldMappings.context < fields.size && context.isNotBlank()) {
+            // Context field (optional)
+            if (fieldMappings.context >= 0 && fieldMappings.context < fields.size && context.isNotBlank()) {
                 fieldValues[fields[fieldMappings.context]] = context
             }
             
-            // Screenshot field
-            if (fieldMappings.screenshot < fields.size && screenshotPath != null) {
+            // Translation field (optional)
+            if (fieldMappings.translation >= 0 && fieldMappings.translation < fields.size && translation.isNotBlank()) {
+                fieldValues[fields[fieldMappings.translation]] = translation
+            }
+            
+            // Screenshot field (optional)
+            if (fieldMappings.screenshot >= 0 && fieldMappings.screenshot < fields.size && screenshotPath != null) {
                 val screenshot = loadAndEncodeScreenshot(screenshotPath)
                 if (screenshot.isNotBlank()) {
                     fieldValues[fields[fieldMappings.screenshot]] = screenshot
@@ -262,6 +279,7 @@ class AnkiDroidHelper(private val context: Context) {
         definition: String,
         partOfSpeech: String,
         context: String,
+        translation: String,
         deckName: String,
         modelName: String,
         fieldMappings: FieldMappings
@@ -271,22 +289,48 @@ class AnkiDroidHelper(private val context: Context) {
             intent.putExtra("modelName", modelName)
             intent.putExtra("deckName", deckName)
             
-            // Prepare field values
-            val fields = Array(6) { "" }
-            fields[fieldMappings.word] = word
+            // Get the maximum field index to determine array size (0-based, so add 1)
+            val maxFieldIndex = maxOf(
+                fieldMappings.word.takeIf { it >= 0 } ?: 0,
+                fieldMappings.reading.takeIf { it >= 0 } ?: 0,
+                fieldMappings.definition.takeIf { it >= 0 } ?: 0,
+                fieldMappings.partOfSpeech.takeIf { it >= 0 } ?: 0,
+                fieldMappings.context.takeIf { it >= 0 } ?: 0,
+                fieldMappings.translation.takeIf { it >= 0 } ?: 0
+            ) + 1
             
-            if (reading.isNotBlank()) {
+            // Prepare field values - ensure array is large enough
+            val fields = Array(maxOf(7, maxFieldIndex)) { "" }
+            
+            // Add field values only for valid indices
+            if (fieldMappings.word >= 0) {
+                fields[fieldMappings.word] = word
+            } else {
+                // Word field is required - use first field
+                fields[0] = word
+            }
+            
+            if (fieldMappings.reading >= 0 && reading.isNotBlank()) {
                 fields[fieldMappings.reading] = reading
             }
             
-            fields[fieldMappings.definition] = definition
+            if (fieldMappings.definition >= 0) {
+                fields[fieldMappings.definition] = definition
+            } else if (fields.size > 1) {
+                // Definition field is required - use second field
+                fields[1] = definition
+            }
             
-            if (partOfSpeech.isNotBlank()) {
+            if (fieldMappings.partOfSpeech >= 0 && partOfSpeech.isNotBlank()) {
                 fields[fieldMappings.partOfSpeech] = partOfSpeech
             }
             
-            if (context.isNotBlank()) {
+            if (fieldMappings.context >= 0 && context.isNotBlank()) {
                 fields[fieldMappings.context] = context
+            }
+            
+            if (fieldMappings.translation >= 0 && translation.isNotBlank()) {
+                fields[fieldMappings.translation] = translation
             }
             
             intent.putExtra("fields", fields)
@@ -369,5 +413,6 @@ data class FieldMappings(
     val definition: Int = 0, 
     val screenshot: Int = 0,
     val context: Int = 0,
-    val partOfSpeech: Int = 0
+    val partOfSpeech: Int = 0,
+    val translation: Int = 0
 )

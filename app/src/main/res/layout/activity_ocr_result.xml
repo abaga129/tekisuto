@@ -43,19 +43,23 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/screenshot_image_view" />
 
-    <ScrollView
-        android:id="@+id/text_scroll_view"
+    <FrameLayout
+        android:id="@+id/text_container"
         android:layout_width="0dp"
-        android:layout_height="120dp"
+        android:layout_height="0dp"
         android:layout_marginStart="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
+        android:minHeight="120dp"
         android:background="@drawable/text_background"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_label">
+        app:layout_constraintTop_toBottomOf="@+id/text_label"
+        app:layout_constraintHeight_min="120dp"
+        app:layout_constraintHeight_max="200dp">
 
+        <!-- This will be replaced dynamically with the FlowLayout -->
         <TextView
             android:id="@+id/ocr_text_view"
             android:layout_width="match_parent"
@@ -63,8 +67,9 @@
             android:padding="8dp"
             android:textIsSelectable="true"
             android:textColor="@color/black"
+            android:visibility="gone"
             tools:text="Recognized text will appear here" />
-    </ScrollView>
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/search_container"
@@ -72,9 +77,9 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginTop="8dp"
-        app:layout_constraintStart_toStartOf="@+id/text_scroll_view"
-        app:layout_constraintEnd_toEndOf="@+id/text_scroll_view"
-        app:layout_constraintTop_toBottomOf="@+id/text_scroll_view">
+        app:layout_constraintStart_toStartOf="@+id/text_container"
+        app:layout_constraintEnd_toEndOf="@+id/text_container"
+        app:layout_constraintTop_toBottomOf="@+id/text_container">
         
         <TextView
             android:id="@+id/selection_hint"
@@ -171,7 +176,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/configure_anki"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+            style="?android:attr/buttonBarButtonStyle" />
     </LinearLayout>
 
     <LinearLayout
@@ -210,7 +215,7 @@
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:text="@string/close"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+            style="?android:attr/buttonBarButtonStyle" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

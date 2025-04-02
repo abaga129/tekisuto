@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/accent_dark">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="4dp" />
+            <solid android:color="#66FFA997" /> <!-- 40% accent_light -->
+            <stroke
+                android:width="1.5dp"
+                android:color="#99FFA997" /> <!-- 60% accent_light -->
+            <padding
+                android:bottom="2dp"
+                android:left="4dp"
+                android:right="4dp"
+                android:top="2dp" />
+        </shape>
+    </item>
+</ripple>

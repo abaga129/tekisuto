@@ -16,6 +16,37 @@
             app:iconSpaceReserved="false"
             app:useSimpleSummaryProvider="true" />
 
+        <SwitchPreferenceCompat
+            android:key="translate_ocr_text"
+            android:title="@string/translate_ocr_title"
+            android:summary="@string/translate_ocr_summary"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+            
+        <ListPreference
+            android:key="translate_target_language"
+            android:title="@string/translate_target_language_title"
+            android:summary="@string/translate_target_language_summary"
+            android:entries="@array/translate_language_entries"
+            android:entryValues="@array/translate_language_values"
+            android:defaultValue="en"
+            android:dependency="translate_ocr_text"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+    
+    <PreferenceCategory
+        android:title="Screenshot Settings"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="hide_accessibility_button"
+            android:title="@string/hide_accessibility_button_title"
+            android:summary="@string/hide_accessibility_button_summary"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+            
     </PreferenceCategory>
 
 </PreferenceScreen>

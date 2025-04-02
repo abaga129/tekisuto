@@ -3,8 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="8dp"
     app:cardBackgroundColor="@color/white"
     app:cardUseCompatPadding="true">
 
@@ -21,6 +21,7 @@
             android:textAlignment="center"
             android:textSize="18sp"
             android:textStyle="bold"
+            android:textColor="@color/primary"
             android:layout_marginBottom="16dp" />
 
         <Button
@@ -31,14 +32,18 @@
             android:drawableStart="@drawable/ic_ocr_small"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="12dp"
+            android:backgroundTint="@color/primary"
+            android:textColor="@color/text_light" />
 
         <Button
             android:id="@+id/btn_close"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/close"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+            android:backgroundTint="@color/white"
+            android:textColor="@color/primary"
+            style="?android:attr/buttonBarButtonStyle" />
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

@@ -102,7 +102,45 @@ class OcrHelper(private val context: Context) {
             stringBuilder.append("\n")
         }
 
-        return stringBuilder.toString().trim()
+        val rawText = stringBuilder.toString().trim()
+        return correctOcrErrors(rawText)
+    }
+    
+    /**
+     * Apply corrections to common OCR errors
+     */
+    private fun correctOcrErrors(text: String): String {
+        var corrected = text
+        
+        // Replace zeros inside words with the letter 'o'
+        // This pattern finds zeros that are surrounded by letters
+        val zeroPattern = Regex("(?<=[a-zA-Z])0(?=[a-zA-Z])")
+        corrected = corrected.replace(zeroPattern, "o")
+        
+        // Replace standalone zeros that are likely uppercase O
+        // This is more aggressive - finds zeros that are:
+        // - at the start of a word followed by lowercase letters
+        // - after uppercase letters
+        val zeroAtStartPattern = Regex("\\b0(?=[a-z])")
+        corrected = corrected.replace(zeroAtStartPattern, "O")
+        
+        val zeroAfterUppercasePattern = Regex("(?<=[A-Z])0")
+        corrected = corrected.replace(zeroAfterUppercasePattern, "O")
+        
+        // Fix common OCR confusions:
+        // 1 (one) vs l (lowercase L) vs I (uppercase i)
+        // Only apply to specific patterns to avoid false positives
+        
+        // Correct '1' at the beginning of words that are likely capital I
+        val oneAtStartPattern = Regex("\\b1(?=[a-z])")
+        corrected = corrected.replace(oneAtStartPattern, "I")
+        
+        // Log corrections if text has changed
+        if (corrected != text) {
+            Log.d(TAG, "OCR text corrected: 0→O and 1→I replacements applied")
+        }
+        
+        return corrected
     }
     
     /**

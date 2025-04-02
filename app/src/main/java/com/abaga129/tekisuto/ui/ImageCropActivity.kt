@@ -126,11 +126,16 @@ class ImageCropActivity : AppCompatActivity() {
     private fun performOcrAndShowResults(bitmap: Bitmap, file: File) {
         ocrHelper.recognizeText(bitmap) { text ->
             runOnUiThread {
+                // Get current OCR language from preferences
+                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                val ocrLanguage = prefs.getString("ocr_language", "latin") ?: "latin"
+                
                 // Launch result activity with recognized text
                 val intent = Intent(this, OCRResultActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtra("OCR_TEXT", text)
                     putExtra("SCREENSHOT_PATH", file.absolutePath)
+                    putExtra("OCR_LANGUAGE", ocrLanguage)
                 }
                 startActivity(intent)
                 finish() // Close this activity

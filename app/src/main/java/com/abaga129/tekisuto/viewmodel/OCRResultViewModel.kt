@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.util.TranslationHelper
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileWriter
@@ -19,6 +20,11 @@ import java.util.Locale
 private const val TAG = "OCRResultViewModel"
 
 class OCRResultViewModel : ViewModel() {
+    
+    override fun onCleared() {
+        super.onCleared()
+        translationHelper?.close()
+    }
 
     private val _ocrText = MutableLiveData<String>()
     val ocrText: LiveData<String> get() = _ocrText
@@ -35,10 +41,30 @@ class OCRResultViewModel : ViewModel() {
     private val _isSearching = MutableLiveData<Boolean>()
     val isSearching: LiveData<Boolean> get() = _isSearching
     
+    private val _translatedText = MutableLiveData<String>()
+    val translatedText: LiveData<String> get() = _translatedText
+    
+    private val _isTranslating = MutableLiveData<Boolean>()
+    val isTranslating: LiveData<Boolean> get() = _isTranslating
+    
+    private val _wordTranslation = MutableLiveData<Pair<String, String>>()
+    val wordTranslation: LiveData<Pair<String, String>> get() = _wordTranslation
+    
+    private val _isTranslatingWord = MutableLiveData<Boolean>()
+    val isTranslatingWord: LiveData<Boolean> get() = _isTranslatingWord
+    
     private var dictionaryRepository: DictionaryRepository? = null
+    private var translationHelper: TranslationHelper? = null
 
-    fun setOcrText(text: String) {
+    fun setOcrText(text: String, ocrLanguage: String? = null) {
         _ocrText.value = text
+        
+        // Auto-translate if enabled
+        translationHelper?.let { helper ->
+            if (helper.isTranslationEnabled()) {
+                translateOcrText(ocrLanguage)
+            }
+        }
     }
 
     fun setScreenshotPath(path: String) {
@@ -49,6 +75,88 @@ class OCRResultViewModel : ViewModel() {
         if (dictionaryRepository == null) {
             dictionaryRepository = DictionaryRepository(context)
         }
+    }
+    
+    fun initTranslationHelper(context: Context) {
+        if (translationHelper == null) {
+            translationHelper = TranslationHelper(context)
+        }
+    }
+    
+    /**
+     * Translate the OCR text using ML Kit
+     * @param sourceLanguage Optional source language code (OCR language setting)
+     */
+    fun translateOcrText(sourceLanguage: String? = null) {
+        val text = _ocrText.value ?: return
+        val helper = translationHelper ?: return
+        
+        if (!helper.isTranslationEnabled() || text.isBlank()) {
+            _translatedText.value = ""
+            return
+        }
+        
+        _isTranslating.value = true
+        
+        // Get OCR language from preferences if not provided
+        val ocrLanguage = sourceLanguage ?: getOcrLanguage()
+        
+        viewModelScope.launch {
+            try {
+                val translated = helper.translateText(text, ocrLanguage)
+                _translatedText.postValue(translated)
+                Log.d(TAG, "Text translated successfully from language: $ocrLanguage")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error translating text", e)
+                _translatedText.postValue("")
+            } finally {
+                _isTranslating.postValue(false)
+            }
+        }
+    }
+    
+    /**
+     * Translate a single word
+     * @param word The word to translate
+     * @param sourceLanguage Optional source language code
+     */
+    fun translateWord(word: String, sourceLanguage: String? = null) {
+        val helper = translationHelper ?: return
+        
+        if (!helper.isTranslationEnabled() || word.isBlank()) {
+            return
+        }
+        
+        _isTranslatingWord.value = true
+        
+        viewModelScope.launch {
+            try {
+                // Get OCR language from preferences if not provided
+                val ocrLanguage = sourceLanguage ?: getOcrLanguage()
+                
+                // Translate the word
+                val translated = helper.translateText(word, ocrLanguage)
+                
+                // Only update if translation succeeded and is different
+                if (translated.isNotBlank() && translated != word) {
+                    _wordTranslation.postValue(Pair(word, translated))
+                    Log.d(TAG, "Word translated: $word → $translated")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error translating word: $word", e)
+            } finally {
+                _isTranslatingWord.postValue(false)
+            }
+        }
+    }
+    
+    /**
+     * Get the OCR language from preferences
+     */
+    private fun getOcrLanguage(): String {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(
+            translationHelper?.context ?: return "latin")
+        return prefs.getString("ocr_language", "latin") ?: "latin"
     }
     
     /**

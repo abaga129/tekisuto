@@ -1,20 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Theme colors based on app icon -->
+    <color name="primary">#4F7F98</color>        <!-- Teal-blue from icon bottom -->
+    <color name="primary_dark">#345566</color>    <!-- Darker variant of primary -->
+    <color name="primary_light">#7AAAC0</color>   <!-- Lighter variant of primary -->
+    
+    <color name="accent">#E08979</color>          <!-- Coral from icon top -->
+    <color name="accent_dark">#BC6859</color>     <!-- Darker coral -->
+    <color name="accent_light">#FFA997</color>    <!-- Lighter coral -->
+    
+    <color name="text_dark">#263238</color>       <!-- Dark blue-gray, close to icon center -->
+    <color name="text_light">#EDF0F2</color>      <!-- Off-white like the icon "T" -->
+    
+    <!-- System colors (keeping for compatibility) -->
+    <color name="purple_200">#7AAAC0</color>      <!-- Mapped to primary_light -->
+    <color name="purple_500">#4F7F98</color>      <!-- Mapped to primary -->
+    <color name="purple_700">#345566</color>      <!-- Mapped to primary_dark -->
+    <color name="teal_200">#E08979</color>        <!-- Mapped to accent -->
+    <color name="teal_700">#BC6859</color>        <!-- Mapped to accent_dark -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- Custom colors -->
-    <color name="status_enabled">#4CAF50</color>  <!-- Green -->
-    <color name="status_disabled">#F44336</color> <!-- Red -->
+    <!-- Status colors -->
+    <color name="status_enabled">#4F7F98</color>  <!-- Use primary color for enabled -->
+    <color name="status_disabled">#E08979</color> <!-- Use accent color for disabled (more harmonious) -->
     
     <!-- Dictionary match colors -->
     <color name="light_gray">#F5F5F5</color>
     <color name="card_background">#FFFFFF</color>
-    <color name="reading_text_color">#757575</color>
-    <color name="part_of_speech_color">#616161</color>
+    <color name="reading_text_color">#546E7A</color>     <!-- More bluish gray to match theme -->
+    <color name="part_of_speech_color">#78909C</color>   <!-- Lighter bluish gray -->
+    
+    <!-- Clickable text colors -->
+    <color name="clickable_word">#4F7F98</color>         <!-- Use primary color -->
+    <color name="clickable_word_pressed">#345566</color> <!-- Use primary_dark -->
+
+    <color name="clickable_word_background">#404F7F98</color>
+    <color name="clickable_word_border">#7A4F7F98</color>
 </resources>

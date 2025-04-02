@@ -2,16 +2,26 @@
     <!-- Base application theme. -->
     <style name="Theme.Tekisuto" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/text_light</item>
         <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSecondaryVariant">@color/accent_dark</item>
+        <item name="colorOnSecondary">@color/text_light</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_dark</item>
+        <item name="android:textColorSecondary">@color/reading_text_color</item>
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/light_gray</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorError">@color/accent</item>
+        <!-- Button styles -->
+        <item name="materialButtonStyle">@style/Widget.Tekisuto.Button</item>
+        <!-- Card styles -->
+        <item name="materialCardViewStyle">@style/Widget.Tekisuto.CardView</item>
     </style>
 
     <style name="Theme.Tekisuto.NoActionBar">
@@ -19,7 +29,34 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="Theme.Tekisuto.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
+    <style name="Theme.Tekisuto.AppBarOverlay" parent="ThemeOverlay.MaterialComponents.Dark.ActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/text_light</item>
+    </style>
 
-    <style name="Theme.Tekisuto.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+    <style name="Theme.Tekisuto.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Light" />
+    
+    <!-- Custom button style -->
+    <style name="Widget.Tekisuto.Button" parent="Widget.MaterialComponents.Button">
+        <item name="backgroundTint">@color/primary</item>
+        <item name="android:textColor">@color/text_light</item>
+        <item name="rippleColor">@color/primary_dark</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+    
+    <!-- Outlined button style -->
+    <style name="Widget.Tekisuto.Button.OutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeColor">@color/primary</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="rippleColor">@color/primary_light</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+    
+    <!-- Card style -->
+    <style name="Widget.Tekisuto.CardView" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/card_background</item>
+        <item name="cardElevation">2dp</item>
+        <item name="cardCornerRadius">8dp</item>
+    </style>
 </resources>

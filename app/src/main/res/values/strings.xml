@@ -24,6 +24,10 @@
     <string name="ocr_language_default">latin</string>
     <string name="ocr_settings" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
     
+    <!-- Screenshot Settings -->
+    <string name="hide_accessibility_button_title">Hide Accessibility Button</string>
+    <string name="hide_accessibility_button_summary">Attempt to remove the accessibility button from screenshots</string>
+    
     <string-array name="ocr_language_entries">
         <item>Latin (English, Spanish, French, etc.)</item>
         <item>Chinese</item>
@@ -41,7 +45,7 @@
     </string-array>
 
     <!-- Popup Menu -->
-    <string name="menu_title">OCR Options</string>
+    <string name="menu_title">Tekisuto Scan</string>
     <string name="perform_ocr">Scan Text (OCR)</string>
     <string name="close">Close</string>
 
@@ -119,4 +123,41 @@
     <string name="export_success">Exported to AnkiDroid</string>
     <string name="export_failed">Failed to export to AnkiDroid</string>
     <string name="export_error">Error exporting to AnkiDroid: %1$s</string>
+    
+    <!-- Translation Settings -->
+    <string name="translate_ocr_title">Auto-Translate OCR Text</string>
+    <string name="translate_ocr_summary">Automatically translate OCR text for Anki export</string>
+    <string name="translate_target_language_title">Target Language</string>
+    <string name="translate_target_language_summary">Language to translate OCR text into</string>
+    <string name="translation_field">Translation Field:</string>
+    <string name="translating">Translating text…</string>
+    <string name="translation_error">Error translating text: %1$s</string>
+    <string name="tap_word_hint">Tap any word to look it up in the dictionary</string>
+    <string name="word_translated">%1$s → %2$s</string>
+    
+    <string-array name="translate_language_entries">
+        <item>English</item>
+        <item>Spanish</item>
+        <item>French</item>
+        <item>German</item>
+        <item>Italian</item>
+        <item>Portuguese</item>
+        <item>Russian</item>
+        <item>Chinese</item>
+        <item>Japanese</item>
+        <item>Korean</item>
+    </string-array>
+    
+    <string-array name="translate_language_values">
+        <item>en</item>
+        <item>es</item>
+        <item>fr</item>
+        <item>de</item>
+        <item>it</item>
+        <item>pt</item>
+        <item>ru</item>
+        <item>zh</item>
+        <item>ja</item>
+        <item>ko</item>
+    </string-array>
 </resources>

@@ -20,10 +20,10 @@
             android:layout_height="wrap_content"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/text_dark"
+            android:textColor="#FFFFFF"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            tools:text="単語" />
+            tools:text="contestaba" />
 
         <TextView
             android:id="@+id/reading_text"
@@ -36,7 +36,7 @@
             app:layout_constraintBottom_toBottomOf="@+id/term_text"
             app:layout_constraintStart_toEndOf="@+id/term_text"
             app:layout_constraintTop_toTopOf="@+id/term_text"
-            tools:text="たんご" />
+            tools:text="(reading)" />
 
         <ImageButton
             android:id="@+id/export_to_anki_button"
@@ -63,7 +63,7 @@
             android:paddingBottom="2dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/term_text"
-            tools:text="Noun" />
+            tools:text="verb" />
 
         <TextView
             android:id="@+id/definition_text"
@@ -71,7 +71,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textSize="14sp"
-            android:textColor="@color/text_dark"
+            android:textColor="#FFFFFF"
             android:background="@drawable/definition_background"
             android:padding="8dp"
             app:layout_constraintEnd_toEndOf="parent"
