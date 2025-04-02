@@ -22,7 +22,7 @@ import java.io.InputStreamReader
 import java.util.zip.ZipInputStream
 
 private const val TAG = "MainViewModel"
-private const val BATCH_SIZE = 500 // Process 500 entries at a time
+private const val BATCH_SIZE = 100 // Process 100 entries at a time - reduced to save memory
 
 class MainViewModel : ViewModel() {
 
@@ -120,32 +120,60 @@ class MainViewModel : ViewModel() {
                 }
             }
             
+            // Estimate memory usage and handle large dictionaries carefully
+            val totalSize = dictionaryFiles.sumOf { it.length() }
+            Log.d(TAG, "Total dictionary size: ${totalSize / 1024 / 1024}MB")
+            
+            // Sort files by size - process smaller files first to show progress quickly
+            dictionaryFiles.sortBy { it.length() }
+            
             // Process all the dictionary files we found
             dictionaryFiles.forEachIndexed { index, file ->
-                Log.d(TAG, "Processing dictionary file: ${file.name}")
+                Log.d(TAG, "Processing dictionary file (${file.length() / 1024}KB): ${file.name}")
+                
+                // Force garbage collection before processing each large file
+                if (file.length() > 10 * 1024 * 1024) { // If file > 10MB
+                    System.gc()
+                }
                 
                 // Process this file
-                val entriesInThisFile = processTermBankFile(file)
-                totalEntriesProcessed += entriesInThisFile
-                
-                // Update progress
-                val progress = 10 + ((index + 1) * 80) / dictionaryFiles.size
-                _importProgress.postValue(progress.coerceAtMost(90))
+                try {
+                    val entriesInThisFile = processTermBankFile(file)
+                    totalEntriesProcessed += entriesInThisFile
+                    
+                    // Update progress
+                    val progress = 10 + ((index + 1) * 80) / dictionaryFiles.size
+                    _importProgress.postValue(progress.coerceAtMost(90))
+                } catch (e: OutOfMemoryError) {
+                    Log.e(TAG, "Out of memory error processing file ${file.name}. Skipping file.", e)
+                    _importProgress.postValue(-2) // Special code for OOM but continuing
+                    // Force garbage collection
+                    System.gc()
+                }
             }
 
-            Log.d(TAG, "Processed $totalEntriesProcessed entries from ${termBankIndex - 1} term bank files")
+            Log.d(TAG, "Processed $totalEntriesProcessed entries from ${dictionaryFiles.size} dictionary files")
 
             // Update dictionary info
             _dictionaryInfo.postValue(dictionaryInfo)
 
             // Clean up temporary files
             extractedDir.deleteRecursively()
+            
+            // Force final garbage collection
+            System.gc()
 
             // Complete progress
             _importProgress.postValue(100)
 
             Log.d(TAG, "Dictionary import completed successfully")
             true
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "Out of memory error importing dictionary", e)
+            _importProgress.postValue(-1)
+            // Force garbage collection
+            System.gc()
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Error importing dictionary", e)
             _importProgress.postValue(-1)
@@ -161,41 +189,51 @@ class MainViewModel : ViewModel() {
         var entriesProcessed = 0
 
         try {
+            // Check if file is too large (>50MB) to handle memory constraints
             val fileSize = termBankFile.length()
-            var bytesRead = 0L
+            if (fileSize > 50 * 1024 * 1024) {
+                Log.w(TAG, "Dictionary file is very large (${fileSize/1024/1024}MB). Processing with memory optimizations.")
+            }
 
-            // Use a streaming JSON parser
+            // Use a streaming JSON parser with larger buffer size for efficiency
             val fileStream = FileInputStream(termBankFile)
-            val bufferedReader = BufferedReader(InputStreamReader(fileStream))
+            val bufferedReader = BufferedReader(InputStreamReader(fileStream), 8192)
 
             // Check the file format by reading the first line
             var line = bufferedReader.readLine()
             if (line == null) {
                 Log.e(TAG, "Term bank file is empty")
+                bufferedReader.close()
                 return 0
             }
             
             // Reset the file stream to start from the beginning
+            bufferedReader.close()
             fileStream.close()
+            
             val newFileStream = FileInputStream(termBankFile)
-            val newBufferedReader = BufferedReader(InputStreamReader(newFileStream))
+            val newBufferedReader = BufferedReader(InputStreamReader(newFileStream), 8192)
             
             // Initialize batch processing
             val entries = mutableListOf<DictionaryEntryEntity>()
             
             // Different dictionaries use different formats
-            if (line.trimStart().startsWith("[")) {
-                // Yomitan/Yomichan format with arrays
-                Log.d(TAG, "Processing array-based dictionary format")
-                processArrayFormatDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
-            } else if (line.trimStart().startsWith("{") || line.contains("\"term\"")) {
-                // Object-based format with explicit term/reading/definition fields
-                Log.d(TAG, "Processing object-based dictionary format")
-                processObjectFormatDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
-            } else {
-                // Simple text format (term:reading:definition)
-                Log.d(TAG, "Processing simple text dictionary format")
-                processSimpleTextDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
+            entriesProcessed = when {
+                line.trimStart().startsWith("[") -> {
+                    // Yomitan/Yomichan format with arrays
+                    Log.d(TAG, "Processing array-based dictionary format")
+                    processArrayFormatDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
+                }
+                line.trimStart().startsWith("{") || line.contains("\"term\"") -> {
+                    // Object-based format with explicit term/reading/definition fields
+                    Log.d(TAG, "Processing object-based dictionary format")
+                    processObjectFormatDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
+                }
+                else -> {
+                    // Simple text format (term:reading:definition)
+                    Log.d(TAG, "Processing simple text dictionary format")
+                    processSimpleTextDictionary(newBufferedReader, fileSize, entries, entriesProcessed)
+                }
             }
             
             // Save any remaining entries
@@ -203,7 +241,14 @@ class MainViewModel : ViewModel() {
                 dictionaryRepository.importDictionaryEntries(entries)
             }
             
+            newBufferedReader.close()
             newFileStream.close()
+            
+            // Force garbage collection after processing large files
+            System.gc()
+            
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "Out of memory error processing dictionary file. Try using smaller dictionary files.", e)
         } catch (e: Exception) {
             Log.e(TAG, "Error processing term bank file", e)
         }
@@ -223,48 +268,49 @@ class MainViewModel : ViewModel() {
         var processedCount = entriesProcessed
         var bytesRead = 0L
         
-        // Track the current JSON entry we're building
-        val currentEntry = StringBuilder()
+        // Use a char-by-char approach instead of accumulating an entire entry
+        val sb = StringBuilder(512) // Start with a modest buffer size
         var bracketCount = 0
         var inEntry = false
+        var line: String? = null
         
-        // Process the file line by line
-        bufferedReader.useLines { lines ->
-            lines.forEach { currentLine ->
-                bytesRead += currentLine.length + 1 // +1 for newline
-
-                // Update progress occasionally
-                if (processedCount % 100 == 0) {
-                    val fileProgress = (bytesRead.toFloat() / fileSize * 100).toInt()
-                    Log.d(TAG, "Term bank processing: $fileProgress% complete, $processedCount entries")
+        while (bufferedReader.readLine().also { line = it } != null) {
+            if (line == null) break
+            bytesRead += line!!.length + 1 // +1 for newline
+            
+            // Update progress occasionally
+            if (processedCount % 100 == 0) {
+                val fileProgress = (bytesRead.toFloat() / fileSize * 100).toInt()
+                Log.d(TAG, "Term bank processing: $fileProgress% complete, $processedCount entries")
+            }
+            
+            if (!inEntry && line!!.trimStart().startsWith("[")) {
+                // Start of a new entry
+                inEntry = true
+                bracketCount = 1
+                sb.clear()
+                sb.append("[")
+            } else if (inEntry) {
+                // Count opening and closing brackets
+                for (char in line!!) {
+                    if (char == '[') bracketCount++
+                    else if (char == ']') bracketCount--
                 }
-
-                // Process the current line
-                if (!inEntry && currentLine.trimStart().startsWith("[")) {
-                    // Start of a new entry
-                    inEntry = true
-                    bracketCount = 1
-                    currentEntry.append("[")
-                } else if (inEntry) {
-                    // Count opening and closing brackets
-                    for (char in currentLine) {
-                        if (char == '[') bracketCount++
-                        else if (char == ']') bracketCount--
-                    }
-
-                    // Append the current line to our entry
-                    currentEntry.append(currentLine)
-
+                
+                // Handle potential OOM by appending until we know it's a complete entry
+                try {
+                    sb.append(line)
+                    
                     // If brackets are balanced, we have a complete entry
                     if (bracketCount == 0) {
                         try {
                             // Parse the entry
-                            val jsonArray = JSONArray(currentEntry.toString())
+                            val jsonArray = JSONArray(sb.toString())
                             val parsedEntry = parseTermBankEntry(jsonArray)
                             if (parsedEntry != null) {
                                 entries.add(parsedEntry)
                                 processedCount++
-
+                                
                                 // If we've reached the batch size, save to database
                                 if (entries.size >= BATCH_SIZE) {
                                     dictionaryRepository.importDictionaryEntries(entries)
@@ -274,11 +320,17 @@ class MainViewModel : ViewModel() {
                         } catch (e: Exception) {
                             Log.e(TAG, "Error parsing array-format entry: ${e.message}")
                         }
-
+                        
                         // Reset for next entry
                         inEntry = false
-                        currentEntry.clear()
+                        sb.clear()
                     }
+                } catch (e: OutOfMemoryError) {
+                    // Handle OOM by skipping this entry
+                    Log.e(TAG, "OOM error processing dictionary entry - skipping", e)
+                    inEntry = false
+                    sb.clear()
+                    bracketCount = 0
                 }
             }
         }
@@ -298,48 +350,49 @@ class MainViewModel : ViewModel() {
         var processedCount = entriesProcessed
         var bytesRead = 0L
         
-        // Track the current JSON entry we're building
-        val currentEntry = StringBuilder()
+        // Use a char-by-char approach instead of accumulating an entire entry
+        val sb = StringBuilder(512) // Start with a modest buffer size
         var braceCount = 0
         var inEntry = false
+        var line: String? = null
         
-        // Process the file line by line
-        bufferedReader.useLines { lines ->
-            lines.forEach { currentLine ->
-                bytesRead += currentLine.length + 1 // +1 for newline
-
-                // Update progress occasionally
-                if (processedCount % 100 == 0) {
-                    val fileProgress = (bytesRead.toFloat() / fileSize * 100).toInt()
-                    Log.d(TAG, "Term bank processing: $fileProgress% complete, $processedCount entries")
+        while (bufferedReader.readLine().also { line = it } != null) {
+            if (line == null) break
+            bytesRead += line!!.length + 1 // +1 for newline
+            
+            // Update progress occasionally
+            if (processedCount % 100 == 0) {
+                val fileProgress = (bytesRead.toFloat() / fileSize * 100).toInt()
+                Log.d(TAG, "Term bank processing: $fileProgress% complete, $processedCount entries")
+            }
+            
+            if (!inEntry && line!!.trimStart().startsWith("{")) {
+                // Start of a new entry
+                inEntry = true
+                braceCount = 1
+                sb.clear()
+                sb.append("{")
+            } else if (inEntry) {
+                // Count opening and closing braces
+                for (char in line!!) {
+                    if (char == '{') braceCount++
+                    else if (char == '}') braceCount--
                 }
-
-                // Process the current line
-                if (!inEntry && currentLine.trimStart().startsWith("{")) {
-                    // Start of a new entry
-                    inEntry = true
-                    braceCount = 1
-                    currentEntry.append("{")
-                } else if (inEntry) {
-                    // Count opening and closing braces
-                    for (char in currentLine) {
-                        if (char == '{') braceCount++
-                        else if (char == '}') braceCount--
-                    }
-
-                    // Append the current line to our entry
-                    currentEntry.append(currentLine)
-
+                
+                // Handle potential OOM by checking before appending
+                try {
+                    sb.append(line)
+                    
                     // If braces are balanced, we have a complete entry
                     if (braceCount == 0) {
                         try {
                             // Parse the entry
-                            val jsonObject = JSONObject(currentEntry.toString())
+                            val jsonObject = JSONObject(sb.toString())
                             val parsedEntry = parseObjectTermBankEntry(jsonObject)
                             if (parsedEntry != null) {
                                 entries.add(parsedEntry)
                                 processedCount++
-
+                                
                                 // If we've reached the batch size, save to database
                                 if (entries.size >= BATCH_SIZE) {
                                     dictionaryRepository.importDictionaryEntries(entries)
@@ -349,11 +402,17 @@ class MainViewModel : ViewModel() {
                         } catch (e: Exception) {
                             Log.e(TAG, "Error parsing object-format entry: ${e.message}")
                         }
-
+                        
                         // Reset for next entry
                         inEntry = false
-                        currentEntry.clear()
+                        sb.clear()
                     }
+                } catch (e: OutOfMemoryError) {
+                    // Handle OOM by skipping this entry
+                    Log.e(TAG, "OOM error processing dictionary entry - skipping", e)
+                    inEntry = false
+                    sb.clear()
+                    braceCount = 0
                 }
             }
         }

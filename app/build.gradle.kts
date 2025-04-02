@@ -23,6 +23,18 @@ android {
         
         // Set up manifest placeholders
         manifestPlaceholders["requestLegacyExternalStorage"] = "true"
+        
+        // Enable multidex to handle larger codebase
+        multiDexEnabled = true
+        
+        // Increase memory for dexing process
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += mapOf(
+                    "room.incremental" to "true"
+                )
+            }
+        }
     }
 
     buildTypes {
@@ -32,6 +44,23 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            // Debug configuration
+        }
+    }
+    
+    // Add memory allocation configuration
+    kapt {
+        arguments {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
+    
+    // Enable additional memory optimizations
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
     compileOptions {
@@ -69,6 +98,10 @@ dependencies {
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("com.github.yalantis:ucrop:2.2.8")  // Image cropping library
     implementation("com.github.ankidroid:Anki-Android:api-v1.1.0")
+    
+    // Add multidex support
+    implementation("androidx.multidex:multidex:2.0.1")
+    
     kapt("androidx.room:room-compiler:$room_version")  // This is crucial for Room
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
