@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardBackgroundColor="@color/card_background"
+    app:cardElevation="2dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/term_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="単語" />
+
+        <TextView
+            android:id="@+id/reading_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textSize="14sp"
+            android:textStyle="italic"
+            android:textColor="@color/reading_text_color"
+            app:layout_constraintBottom_toBottomOf="@+id/term_text"
+            app:layout_constraintStart_toEndOf="@+id/term_text"
+            app:layout_constraintTop_toTopOf="@+id/term_text"
+            tools:text="たんご" />
+
+        <ImageButton
+            android:id="@+id/export_to_anki_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/export_to_anki"
+            android:src="@drawable/ic_anki_export"
+            app:layout_constraintBottom_toBottomOf="@+id/term_text"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/term_text" />
+
+        <TextView
+            android:id="@+id/part_of_speech_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="@color/part_of_speech_color"
+            android:background="@color/light_gray"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/term_text"
+            tools:text="Noun" />
+
+        <TextView
+            android:id="@+id/definition_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="14sp"
+            android:textColor="@android:color/black"
+            android:background="@drawable/definition_background"
+            android:padding="8dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/part_of_speech_text"
+            tools:text="The definition of the word goes here with additional explanation if needed." />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.cardview.widget.CardView>

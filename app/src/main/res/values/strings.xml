@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tekisuto</string>
+    <string name="crop_image">Crop Image</string>
+
+    <!-- Main Activity -->
+    <string name="app_description">Screen Reader OCR Accessibility Service</string>
+    <string name="app_icon_description">OCR App Icon</string>
+    <string name="service_instructions">Enable the accessibility service to use the OCR feature through the accessibility button</string>
+    <string name="service_status">Service Status:</string>
+    <string name="service_enabled">Enabled</string>
+    <string name="service_disabled">Disabled</string>
+    <string name="open_accessibility_settings">Open Accessibility Settings</string>
+    <string name="usage_instructions">After enabling the service, you can access the OCR feature by clicking the accessibility button that appears on the edge of your screen</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_description">Provides OCR functionality for any screen content via the accessibility button</string>
+    <string name="accessibility_service_summary">Touch the accessibility button to scan any text on screen</string>
+    
+    <!-- OCR Language Settings -->
+    <string name="ocr_settings_title">OCR Settings</string>
+    <string name="ocr_language_title">OCR Language</string>
+    <string name="ocr_language_summary">Select the language for text recognition</string>
+    <string name="ocr_language_default">latin</string>
+    <string name="ocr_settings">OCR Settings</string>
+    
+    <string-array name="ocr_language_entries">
+        <item>Latin (English, Spanish, French, etc.)</item>
+        <item>Chinese</item>
+        <item>Devanagari (Hindi, Sanskrit, etc.)</item>
+        <item>Japanese</item>
+        <item>Korean</item>
+    </string-array>
+    
+    <string-array name="ocr_language_values">
+        <item>latin</item>
+        <item>chinese</item>
+        <item>devanagari</item>
+        <item>japanese</item>
+        <item>korean</item>
+    </string-array>
+
+    <!-- Popup Menu -->
+    <string name="menu_title">OCR Options</string>
+    <string name="perform_ocr">Scan Text (OCR)</string>
+    <string name="close">Close</string>
+
+    <!-- OCR Result Activity -->
+    <string name="ocr_result_title">OCR Result</string>
+    <string name="screenshot_description">Screenshot of scanned content</string>
+    <string name="recognized_text">Recognized Text:</string>
+    <string name="copy">Copy Text</string>
+    <string name="save">Save to File</string>
+    <string name="text_copied">Text copied to clipboard</string>
+    <string name="dictionary_matches">Dictionary Matches</string>
+    <string name="no_dictionary_matches">No dictionary matches found</string>
+    <string name="searching_dictionary">Searching dictionary…</string>
+    <string name="search_dictionary">Find Dictionary Matches</string>
+    <string name="select_text_hint">Select text for specific lookup</string>
+    <string name="lookup_selected_text">Dictionary Lookup</string>
+    
+    <string name="import_dictionary">Import Dictionary</string>
+    <string name="importing_dictionary">Importing dictionary…</string>
+    <string name="import_success">Dictionary imported successfully</string>
+    <string name="import_error">Error importing dictionary</string>
+    <string name="import_error_with_message">Error importing dictionary: %1$s</string>
+    <string name="dictionary_info">Dictionary: %1$s (%2$s→%3$s)</string>
+    <string name="dictionary_entries_count">Loaded dictionary with %1$d entries</string>
+    
+    <!-- Dictionary Browser -->
+    <string name="dictionary_browser_title">Dictionary Browser</string>
+    <string name="browse_dictionary">Browse Dictionary</string>
+    <string name="search_dictionary_hint">Search term, reading, or definition</string>
+    <string name="clear_search">Clear search</string>
+    <string name="no_dictionary_results">No dictionary entries found</string>
+    <string name="dictionary_stats">Dictionary contains %1$d entries</string>
+    <string name="search_dictionary_button">Search</string>
+    <string name="clear_dictionary">Clear Dictionary</string>
+    <string name="clear_dictionary_title">Clear Dictionary</string>
+    <string name="clear_dictionary_message">Are you sure you want to delete all dictionary entries? This action cannot be undone.</string>
+    <string name="clear">Clear</string>
+    <string name="dictionary_cleared">Dictionary cleared successfully</string>
+    <string name="error_clearing_dictionary">Error clearing dictionary: %1$s</string>
+    
+    <!-- AnkiDroid Integration -->
+    <string name="anki_config_title">AnkiDroid Integration Setup</string>
+    <string name="anki_status">AnkiDroid Status:</string>
+    <string name="anki_status_available">Available</string>
+    <string name="anki_status_unavailable">Not Installed</string>
+    <string name="anki_instructions">Configure how to export dictionary entries to AnkiDroid. Select a deck, note type, and map fields.</string>
+    <string name="checking">Checking…</string>
+    <string name="anki_deck">Deck:</string>
+    <string name="anki_model">Note Type:</string>
+    <string name="select_deck">Select deck</string>
+    <string name="select_model">Select note type</string>
+    <string name="select_field">Select field</string>
+    <string name="field_mappings">Field Mappings</string>
+    <string name="word_field">Word Field (Required):</string>
+    <string name="reading_field">Reading Field:</string>
+    <string name="definition_field">Definition Field (Required):</string>
+    <string name="part_of_speech_field">Part of Speech Field:</string>
+    <string name="context_field">Context Field (OCR Text):</string>
+    <string name="screenshot_field">Screenshot Field:</string>
+    <string name="save_config">Save Configuration</string>
+    <string name="test_anki">Test Export</string>
+    <string name="config_saved">AnkiDroid configuration saved</string>
+    <string name="configure_anki">Configure AnkiDroid</string>
+    <string name="export_to_anki">Export to AnkiDroid</string>
+    <string name="anki_configuration_not_set">AnkiDroid configuration not set</string>
+    <string name="anki_load_data_error">Failed to load AnkiDroid data</string>
+    <string name="anki_load_fields_error">Failed to load fields for selected note type</string>
+    <string name="select_deck_error">Please select a deck</string>
+    <string name="select_model_error">Please select a note type</string>
+    <string name="word_field_required">Word field is required</string>
+    <string name="definition_field_required">Definition field is required</string>
+    <string name="test_note_added">Test note added to AnkiDroid</string>
+    <string name="test_note_failed">Failed to add test note</string>
+    <string name="test_note_error">Error adding test note: %1$s</string>
+    <string name="export_success">Exported to AnkiDroid</string>
+    <string name="export_failed">Failed to export to AnkiDroid</string>
+    <string name="export_error">Error exporting to AnkiDroid: %1$s</string>
+</resources>

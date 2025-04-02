@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.abaga129.tekisuto">
+
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+
+    <!-- For saving OCR results -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Media permissions for API 29+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33"/>
+
+    <!-- For ML Kit OCR functionality -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- For AnkiDroid integration -->
+    <queries>
+        <package android:name="com.ichi2.anki" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat"
+        android:requestLegacyExternalStorage="${requestLegacyExternalStorage}">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.AccessibilityOcrService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <activity
+            android:name=".ui.OCRResultActivity"
+            android:exported="false" />
+            
+        <activity
+            android:name=".ui.dictionary.DictionaryBrowserActivity"
+            android:exported="false" />
+            
+        <activity
+            android:name=".ui.ImageCropActivity"
+            android:exported="false"
+            android:label="@string/crop_image" />
+            
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+            
+        <activity
+            android:name=".ui.anki.AnkiDroidConfigActivity"
+            android:exported="false"
+            android:label="@string/anki_config_title" />
+            
+        <activity
+            android:name=".ui.settings.SettingsActivity"
+            android:exported="false"
+            android:label="@string/ocr_settings_title" />
+
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr,ocr_chinese,ocr_devanagari,ocr_japanese,ocr_korean" />
+
+        <meta-data
+            android:name="firebase_performance_collection_enabled"
+            android:value="false" />
+
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+    </application>
+
+</manifest>
