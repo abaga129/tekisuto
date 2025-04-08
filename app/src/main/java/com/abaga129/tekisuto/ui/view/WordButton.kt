@@ -41,7 +41,8 @@ class WordButton @JvmOverloads constructor(
         
         // Set text appearance
         setTextColor(context.getColor(R.color.text_light))
-        textSize = 16f
+        textSize = 14f
+        isAllCaps = false // Prevent automatic capitalization
         
         // Apply initial background and text color
         updateBackgroundBasedOnState()
@@ -68,10 +69,13 @@ class WordButton @JvmOverloads constructor(
     }
     
     /**
-     * Set word text
+     * Set word text, converting to lowercase if needed
      */
     fun setWord(word: String) {
         originalText = word
-        text = word
+        
+        // Convert to lowercase for display
+        val displayText = word.lowercase()
+        text = displayText
     }
 }

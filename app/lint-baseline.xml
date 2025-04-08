@@ -15,11 +15,33 @@
     <issue
         id="DirectDateInstantiation"
         message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="    val importDate: Date = Date()"
+        errorLine2="                           ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
+            line="296"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="    val importDate: Date = Date()"
+        errorLine2="                           ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
+            line="296"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
         errorLine1="        val timeStamp = SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;, Locale.getDefault()).format(Date())"
         errorLine2="                                                                                        ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/ui/ImageCropActivity.kt"
-            line="142"
+            line="147"
             column="89"/>
     </issue>
 
@@ -30,7 +52,7 @@
         errorLine2="                                                                                            ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
-            line="165"
+            line="266"
             column="93"/>
     </issue>
 
@@ -52,8 +74,85 @@
         errorLine2="                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/viewmodel/MainViewModel.kt"
-            line="599"
+            line="1419"
             column="71"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                val startTime = System.currentTimeMillis()"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="179"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                Log.d(TAG, &quot;Word extraction took ${System.currentTimeMillis() - startTime}ms for ${rawWords.size} words&quot;)"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="187"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                val bulkSearchTime = System.currentTimeMillis()"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="190"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                Log.d(TAG, &quot;Bulk search took ${System.currentTimeMillis() - bulkSearchTime}ms, found ${exactMatches.size} matches&quot;)"
+        errorLine2="                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="192"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                val fuzzySearchStart = System.currentTimeMillis()"
+        errorLine2="                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="222"
+            column="40"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                Log.d(TAG, &quot;Fuzzy search took ${System.currentTimeMillis() - fuzzySearchStart}ms&quot;)"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="239"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                Log.d(TAG, &quot;Total search took ${System.currentTimeMillis() - startTime}ms, found ${sortedMatches.size} matches&quot;)"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
+            line="247"
+            column="49"/>
     </issue>
 
 </issues>

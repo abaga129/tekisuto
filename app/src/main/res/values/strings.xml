@@ -62,6 +62,7 @@
     <string name="search_dictionary">Find Dictionary Matches</string>
     <string name="select_text_hint">Select text for specific lookup</string>
     <string name="lookup_selected_text">Dictionary Lookup</string>
+    <string name="search" tools:ignore="DuplicateCrowdInStrings">Search</string>
     
     <string name="import_dictionary">Import Dictionary</string>
     <string name="importing_dictionary">Importing dictionary…</string>
@@ -78,7 +79,7 @@
     <string name="clear_search">Clear search</string>
     <string name="no_dictionary_results">No dictionary entries found</string>
     <string name="dictionary_stats">Dictionary contains %1$d entries</string>
-    <string name="search_dictionary_button">Search</string>
+    <string name="search_dictionary_button" tools:ignore="DuplicateCrowdInStrings">Search</string>
     <string name="clear_dictionary" tools:ignore="DuplicateCrowdInStrings">Clear Dictionary</string>
     <string name="clear_dictionary_title" tools:ignore="DuplicateCrowdInStrings">Clear Dictionary</string>
     <string name="clear_dictionary_message">Are you sure you want to delete all dictionary entries? This action cannot be undone.</string>
@@ -123,6 +124,23 @@
     <string name="export_success">Exported to AnkiDroid</string>
     <string name="export_failed">Failed to export to AnkiDroid</string>
     <string name="export_error">Error exporting to AnkiDroid: %1$s</string>
+    
+    <!-- Dictionary Manager -->
+    <string name="dictionary_manager_title">Dictionary Manager</string>
+    <string name="manage_dictionaries">Manage Dictionaries</string>
+    <string name="no_dictionaries_imported">No dictionaries imported</string>
+    <string name="delete_dictionary">Delete Dictionary</string>
+    <string name="delete_dictionary_confirm">Are you sure you want to delete this dictionary? This action cannot be undone.</string>
+    <string name="dictionary_deleted">Dictionary deleted</string>
+    <string name="error_deleting_dictionary">Error deleting dictionary</string>
+    <string name="move_up">Move Up</string>
+    <string name="move_down">Move Down</string>
+    <string name="dictionary_priority_format">Priority: %1$d</string>
+    <string name="dictionary_entry_count">Entries: %1$d</string>
+    <string name="dictionary_author">Author: %1$s</string>
+    <string name="dictionary_languages">Languages: %1$s → %2$s</string>
+    <string name="dictionary_priority_updated">Dictionary priority updated</string>
+    <string name="priority_change_error">Error updating dictionary priority</string>
     
     <!-- Translation Settings -->
     <string name="translate_ocr_title">Auto-Translate OCR Text</string>

@@ -2,10 +2,8 @@ package com.abaga129.tekisuto
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -13,39 +11,28 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.service.AccessibilityOcrService
+import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.ui.settings.SettingsActivity
 import com.abaga129.tekisuto.viewmodel.DictionaryInfo
 import com.abaga129.tekisuto.viewmodel.MainViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var viewModel: MainViewModel
     private lateinit var statusTextView: TextView
     private lateinit var settingsButton: Button
-    private lateinit var importDictionaryButton: Button
+    private lateinit var manageDictionariesButton: Button
     private lateinit var browseDictionaryButton: Button
     private lateinit var ocrSettingsButton: Button
+    private lateinit var configureAnkiButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var dictionaryInfoTextView: TextView
-
-    // Create a launcher for file selection
-    private val selectDictionaryLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            importYomitanDictionary(it)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,9 +48,10 @@ class MainActivity : AppCompatActivity() {
         // Initialize UI components
         statusTextView = findViewById(R.id.status_text_view)
         settingsButton = findViewById(R.id.settings_button)
-        importDictionaryButton = findViewById(R.id.import_dictionary_button)
+        manageDictionariesButton = findViewById(R.id.manage_dictionaries_button)
         browseDictionaryButton = findViewById(R.id.browse_dictionary_button)
         ocrSettingsButton = findViewById(R.id.ocr_settings_button)
+        configureAnkiButton = findViewById(R.id.configure_anki_button)
         progressBar = findViewById(R.id.import_progress_bar)
         dictionaryInfoTextView = findViewById(R.id.dictionary_info_text_view)
 
@@ -75,9 +63,9 @@ class MainActivity : AppCompatActivity() {
             openAccessibilitySettings()
         }
 
-        // Set click listener for the import dictionary button
-        importDictionaryButton.setOnClickListener {
-            openDictionaryPicker()
+        // Set click listener for manage dictionaries button
+        manageDictionariesButton.setOnClickListener {
+            openDictionaryManager()
         }
         
         // Set click listener for the browse dictionary button
@@ -88,6 +76,11 @@ class MainActivity : AppCompatActivity() {
         // Set click listener for the OCR settings button
         ocrSettingsButton.setOnClickListener {
             openOcrSettings()
+        }
+        
+        // Set click listener for the Configure AnkiDroid button
+        configureAnkiButton.setOnClickListener {
+            openAnkiConfig()
         }
 
         // Observe accessibility service status
@@ -152,8 +145,9 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun openDictionaryPicker() {
-        selectDictionaryLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+    private fun openDictionaryManager() {
+        val intent = Intent(this, com.abaga129.tekisuto.ui.dictionary.DictionaryManagerActivity::class.java)
+        startActivity(intent)
     }
     
     private fun openDictionaryBrowser() {
@@ -165,60 +159,27 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, SettingsActivity::class.java)
         startActivity(intent)
     }
-
-    private fun importYomitanDictionary(uri: Uri) {
-        // Show a toast to indicate the import has started
-        Toast.makeText(this, getString(R.string.importing_dictionary), Toast.LENGTH_SHORT).show()
-
-        // Show progress bar
-        progressBar.visibility = View.VISIBLE
-        progressBar.isIndeterminate = true
-        importDictionaryButton.isEnabled = false
-
-        // Launch a coroutine to handle the import in the background
-        lifecycleScope.launch {
-            try {
-                val success = withContext(Dispatchers.IO) {
-                    // Call your ViewModel method to handle the actual import
-                    viewModel.importYomitanDictionary(this@MainActivity, uri)
-                }
-
-                // Show result toast based on import success
-                val messageResId = if (success) R.string.import_success else R.string.import_error
-                Toast.makeText(this@MainActivity, getString(messageResId), Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                // Handle exception
-                Log.e("MainActivity", "Error importing dictionary", e)
-                Toast.makeText(
-                    this@MainActivity,
-                    getString(R.string.import_error_with_message, e.message),
-                    Toast.LENGTH_LONG
-                ).show()
-
-                // Reset UI
-                progressBar.visibility = View.GONE
-                importDictionaryButton.isEnabled = true
-            }
-        }
+    
+    private fun openAnkiConfig() {
+        val intent = Intent(this, com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity::class.java)
+        startActivity(intent)
     }
+
 
     private fun updateImportProgress(progress: Int) {
         when {
             progress < 0 -> {
                 // Error occurred
                 progressBar.visibility = View.GONE
-                importDictionaryButton.isEnabled = true
             }
             progress == 0 -> {
                 // Just started
                 progressBar.isIndeterminate = true
                 progressBar.visibility = View.VISIBLE
-                importDictionaryButton.isEnabled = false
             }
             progress == 100 -> {
                 // Completed
                 progressBar.visibility = View.GONE
-                importDictionaryButton.isEnabled = true
                 Toast.makeText(this, getString(R.string.import_success), Toast.LENGTH_SHORT).show()
             }
             else -> {

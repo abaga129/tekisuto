@@ -27,7 +27,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.DayNight"
+        android:theme="@style/Theme.MaterialComponents"
         android:requestLegacyExternalStorage="${requestLegacyExternalStorage}"
         android:largeHeap="true">
 
@@ -54,7 +54,8 @@
 
         <activity
             android:name=".ui.OCRResultActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan" />
             
         <activity
             android:name=".ui.dictionary.DictionaryBrowserActivity"
@@ -68,7 +69,7 @@
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+            android:theme="@style/Theme.MaterialComponents.NoActionBar"/>
             
         <activity
             android:name=".ui.anki.AnkiDroidConfigActivity"
@@ -79,6 +80,11 @@
             android:name=".ui.settings.SettingsActivity"
             android:exported="false"
             android:label="@string/ocr_settings_title" />
+            
+        <activity
+            android:name=".ui.dictionary.DictionaryManagerActivity"
+            android:exported="false"
+            android:label="@string/dictionary_manager_title" />
 
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

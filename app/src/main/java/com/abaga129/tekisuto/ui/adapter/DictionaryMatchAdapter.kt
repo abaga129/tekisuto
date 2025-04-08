@@ -1,6 +1,9 @@
 package com.abaga129.tekisuto.ui.adapter
 
 import android.content.Intent
+import android.text.Html
+import android.text.Spanned
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -68,6 +71,9 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
 
         fun bind(entry: DictionaryEntryEntity, ankiExportListener: OnAnkiExportListener?) {
+            // Log entry details for debugging
+            Log.d("DictionaryAdapter", "Processing entry: ${entry.term}, isHtml=${entry.isHtmlContent}")
+            
             // Display term or show placeholder if empty
             if (entry.term.isNotBlank()) {
                 termTextView.text = entry.term
@@ -94,9 +100,52 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             
             // Display definition or show placeholder if empty
             if (entry.definition.isNotBlank()) {
-                // Format definition - preserve line breaks and add spacing
-                definitionTextView.text = entry.definition
-                    .replace("\n", "\n\n") // Double-space between list items for better readability
+                // Check if the content is HTML
+                Log.d("DictionaryAdapter", "isHtmlContent flag: ${entry.isHtmlContent}")
+                Log.d("DictionaryAdapter", "Definition content (first 100 chars): ${entry.definition.take(100)}")
+                
+                // Double-check content format
+                val looksLikeRawJson = entry.definition.contains("\"tag\":") || 
+                                       entry.definition.contains("\"content\":") ||
+                                       entry.definition.startsWith("{") ||
+                                       entry.definition.startsWith("[")
+                                       
+                val looksLikeHtml = entry.definition.contains("<div") || 
+                                    entry.definition.contains("<p>") || 
+                                    entry.definition.contains("<ol") ||
+                                    entry.definition.contains("<span")
+                
+                // Use HTML if:
+                // 1. The isHtmlContent flag is set AND it doesn't look like raw JSON
+                // 2. OR if it looks like HTML regardless of the flag (legacy content support)
+                if ((entry.isHtmlContent && !looksLikeRawJson) || looksLikeHtml) {
+                    try {
+                        Log.d("DictionaryAdapter", "Rendering HTML content")
+                        
+                        // Use Html.fromHtml to render the HTML content
+                        val htmlContent: Spanned = Html.fromHtml(
+                            entry.definition,
+                            Html.FROM_HTML_MODE_COMPACT
+                        )
+                        
+                        definitionTextView.text = htmlContent
+                        Log.d("DictionaryAdapter", "HTML rendered successfully. Length: ${htmlContent.length}")
+                    } catch (e: Exception) {
+                        Log.e("DictionaryAdapter", "Error rendering HTML: ${e.message}", e)
+                        // Fallback to plain text on error
+                        definitionTextView.text = "Error displaying definition. Please report this issue."
+                    }
+                } else {
+                    // If it looks like raw JSON but was marked as HTML, log an error
+                    if (entry.isHtmlContent && looksLikeRawJson) {
+                        Log.e("DictionaryAdapter", "Entry marked as HTML but contains raw JSON/tags!")
+                    }
+                    
+                    // Format plain text definition - preserve line breaks and add spacing
+                    definitionTextView.text = entry.definition
+                        .replace("\n", "\n\n") // Double-space between list items for better readability
+                    Log.d("DictionaryAdapter", "Setting plain text definition")
+                }
                 
                 android.util.Log.d("DictionaryAdapter", "Setting definition: ${entry.definition.take(100)}...")
                 definitionTextView.visibility = View.VISIBLE

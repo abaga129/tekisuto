@@ -4,8 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:theme="@style/Theme.AppCompat">
+    tools:context=".MainActivity">
 
     <TextView
         android:id="@+id/title_text_view"
@@ -79,11 +78,11 @@
         app:layout_constraintTop_toBottomOf="@+id/status_text_view" />
 
     <Button
-        android:id="@+id/import_dictionary_button"
+        android:id="@+id/manage_dictionaries_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="@string/import_dictionary"
+        android:text="@string/manage_dictionaries"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/settings_button" />
@@ -96,7 +95,7 @@
         android:text="@string/browse_dictionary"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/import_dictionary_button" />
+        app:layout_constraintTop_toBottomOf="@+id/manage_dictionaries_button" />
         
     <Button
         android:id="@+id/ocr_settings_button"
@@ -107,6 +106,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/browse_dictionary_button" />
+        
+    <Button
+        android:id="@+id/configure_anki_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/configure_anki"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ocr_settings_button" />
 
     <ProgressBar
         android:id="@+id/import_progress_bar"
@@ -119,7 +128,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ocr_settings_button" />
+        app:layout_constraintTop_toBottomOf="@+id/configure_anki_button" />
 
     <TextView
         android:id="@+id/dictionary_info_text_view"

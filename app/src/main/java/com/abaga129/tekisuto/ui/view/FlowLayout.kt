@@ -15,8 +15,8 @@ class FlowLayout @JvmOverloads constructor(
 ) : ViewGroup(context, attrs, defStyleAttr) {
 
     private var lineHeight = 0
-    private val horizontalSpacing = 8 // Space between items horizontally
-    private val verticalSpacing = 8 // Space between rows
+    private val horizontalSpacing = 4 // Space between items horizontally
+    private val verticalSpacing = 4 // Space between rows
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight

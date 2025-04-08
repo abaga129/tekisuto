@@ -7,7 +7,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
+import com.abaga129.tekisuto.database.DictionaryMetadataEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.util.StructuredContentHtmlConverter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -18,6 +20,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.FileReader
 import java.io.InputStreamReader
 import java.util.zip.ZipInputStream
 
@@ -92,8 +95,25 @@ class MainViewModel : ViewModel() {
 
             _importProgress.postValue(10)
 
-            // Clear existing entries before import
-            dictionaryRepository.clearDictionary()
+            // Create dictionary metadata entry
+            val dictionaryMetadata = DictionaryMetadataEntity(
+                title = dictionaryInfo.title,
+                author = dictionaryInfo.author,
+                description = dictionaryInfo.description,
+                sourceLanguage = dictionaryInfo.sourceLanguage,
+                targetLanguage = dictionaryInfo.targetLanguage,
+                priority = 0 // Default priority
+            )
+            
+            // Save the metadata and get the dictionary ID
+            val dictionaryId = dictionaryRepository.saveDictionaryMetadata(dictionaryMetadata)
+            
+            if (dictionaryId <= 0) {
+                Log.e(TAG, "Failed to save dictionary metadata")
+                _importProgress.postValue(-1)
+                extractedDir.deleteRecursively()
+                return false
+            }
 
             // Process dictionary files in different formats
             var totalEntriesProcessed = 0
@@ -143,6 +163,132 @@ class MainViewModel : ViewModel() {
             dictionaryFiles.forEachIndexed { index, file ->
                 Log.d(TAG, "Processing dictionary file (${file.length() / 1024}KB): ${file.name}")
                 
+                // Special handling for array-es dictionary format
+                if (file.name == "term_bank_1.json" && file.length() < 1 * 1024 * 1024) { // Small file < 1MB
+                    // Try direct JSON parsing first
+                    try {
+                        Log.d(TAG, "Attempting special array-es dictionary processing")
+                        val fileContent = file.readText()
+                        
+                        if (fileContent.startsWith("[") && fileContent.contains("\"abada\"")) {
+                            // This is likely the array-es dictionary 
+                            Log.d(TAG, "Detected array-es dictionary format - using direct JSON parsing")
+                            
+                            val entriesArray = JSONArray(fileContent) 
+                            Log.d(TAG, "Parsed array with ${entriesArray.length()} entries")
+                            
+                            var entriesImported = 0
+                            val batchEntries = mutableListOf<DictionaryEntryEntity>()
+                            
+                            // Process each entry in the array
+                            for (i in 0 until entriesArray.length()) {
+                                try {
+                                    val entryArray = entriesArray.getJSONArray(i)
+                                    
+                                    // Extract entry fields
+                                    val term = entryArray.getString(0)
+                                    val reading = entryArray.optString(1, "")
+                                    val partOfSpeech = entryArray.optString(2, "")
+                                    
+                                    // Get definition array at position 5
+                                    var definition = ""
+                                    if (entryArray.length() > 5 && entryArray.opt(5) is JSONArray) {
+                                        val defArray = entryArray.getJSONArray(5)
+                                        val defBuilder = StringBuilder()
+                                        
+                                        for (j in 0 until defArray.length()) {
+                                            if (defBuilder.isNotEmpty()) defBuilder.append("\n")
+                                            defBuilder.append(defArray.getString(j))
+                                        }
+                                        
+                                        definition = defBuilder.toString()
+                                    }
+                                    
+                                    // Create entity
+                                    val entry = DictionaryEntryEntity(
+                                        dictionaryId = dictionaryId,
+                                        term = term,
+                                        reading = reading,
+                                        definition = definition,
+                                        partOfSpeech = partOfSpeech,
+                                        tags = emptyList(),
+                                        isHtmlContent = false
+                                    )
+                                    
+                                    // Add to batch
+                                    batchEntries.add(entry)
+                                    entriesImported++
+                                    
+                                    // Save batch if needed
+                                    if (batchEntries.size >= BATCH_SIZE) {
+                                        val savedCount = dictionaryRepository.importDictionaryEntries(batchEntries)
+                                        Log.d(TAG, "Saved batch of ${batchEntries.size} entries, total processed: $entriesImported")
+                                        batchEntries.clear()
+                                    }
+                                    
+                                    // Log progress
+                                    if (entriesImported <= 5 || entriesImported % 100 == 0) {
+                                        Log.d(TAG, "Processed entry #$entriesImported: term='$term', reading='$reading'")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error processing array entry at index $i: ${e.message}")
+                                }
+                            }
+                            
+                            // Save any remaining entries
+                            if (batchEntries.isNotEmpty()) {
+                                dictionaryRepository.importDictionaryEntries(batchEntries)
+                                Log.d(TAG, "Saved final batch of ${batchEntries.size} entries")
+                            }
+                            
+                            totalEntriesProcessed += entriesImported
+                            
+                            // Update progress
+                            val progress = 10 + ((index + 1) * 80) / dictionaryFiles.size
+                            _importProgress.postValue(progress.coerceAtMost(90))
+                            
+                            Log.d(TAG, "Completed special processing of ${file.name} with $entriesImported entries")
+                            
+                            // Skip regular processing for this file
+                            return@forEachIndexed
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in special array-es processing, falling back to standard processing: ${e.message}")
+                    }
+                }
+                
+                // For the first few files, check if it has a Yomitan structure
+                if (index < 3) {
+                    var fileReader: BufferedReader? = null
+                    try {
+                        // Check first few characters of the file
+                        fileReader = BufferedReader(FileReader(file))
+                        val firstChars = CharArray(100)
+                        fileReader.read(firstChars, 0, 100)
+                        
+                        val fileStart = String(firstChars).trim()
+                        Log.d(TAG, "File starts with: ${fileStart.take(50)}...")
+                        
+                        // Try to identify dictionary type
+                        val isStructuredContent = fileStart.contains("\"structured-content\"")
+                        val isArrayFormat = fileStart.startsWith("[")
+                        val isObjectFormat = fileStart.startsWith("{")
+                        
+                        Log.d(TAG, "Dictionary file analysis: " +
+                                   "isStructuredContent=$isStructuredContent, " +
+                                   "isArrayFormat=$isArrayFormat, " +
+                                   "isObjectFormat=$isObjectFormat")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error analyzing dictionary file: ${e.message}")
+                    } finally {
+                        try {
+                            fileReader?.close()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error closing file reader: ${e.message}")
+                        }
+                    }
+                }
+                
                 // Force garbage collection before processing each large file
                 if (file.length() > 10 * 1024 * 1024) { // If file > 10MB
                     System.gc()
@@ -150,7 +296,11 @@ class MainViewModel : ViewModel() {
                 
                 // Process this file
                 try {
-                    val entriesInThisFile = processTermBankFile(file)
+                    // Reset entry count for diagnostic logs
+                    entryCount = 0
+                    
+                    // Process file and count entries
+                    val entriesInThisFile = processTermBankFile(file, dictionaryId)
                     totalEntriesProcessed += entriesInThisFile
                     
                     // Update progress
@@ -158,11 +308,19 @@ class MainViewModel : ViewModel() {
                     _importProgress.postValue(progress.coerceAtMost(90))
                     
                     Log.d(TAG, "Completed processing ${file.name} with $entriesInThisFile entries")
+                    
+                    // If no entries were processed, log a warning
+                    if (entriesInThisFile == 0) {
+                        Log.w(TAG, "No entries were processed from file: ${file.name}. " +
+                                   "This might indicate a format problem.")
+                    }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "Out of memory error processing file ${file.name}. Skipping file.", e)
                     _importProgress.postValue(-2) // Special code for OOM but continuing
                     // Force garbage collection
                     System.gc()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing file ${file.name}: ${e.message}", e)
                 }
             }
 
@@ -202,9 +360,11 @@ class MainViewModel : ViewModel() {
 
     /**
      * Process a term bank file using streaming to avoid OOM errors
+     * @param termBankFile The file to process
+     * @param dictionaryId The ID of the dictionary this file belongs to
      * @return The number of entries processed
      */
-    private suspend fun processTermBankFile(termBankFile: File): Int {
+    private suspend fun processTermBankFile(termBankFile: File, dictionaryId: Long): Int {
         var entriesProcessed = 0
         var fileStream: FileInputStream? = null
         var bufferedReader: BufferedReader? = null
@@ -220,34 +380,116 @@ class MainViewModel : ViewModel() {
             fileStream = FileInputStream(termBankFile)
             bufferedReader = BufferedReader(InputStreamReader(fileStream), 16384)
             
-            // Check the first few characters to determine the format
-            val firstChars = CharArray(100)
-            bufferedReader.mark(1000) // Mark with large readahead limit for big files
-            bufferedReader.read(firstChars, 0, 100)
+            // Read more characters to better determine the format
+            val firstChars = CharArray(500)
+            bufferedReader.mark(2000) // Mark with large readahead limit for big files
+            bufferedReader.read(firstChars, 0, 500)
             bufferedReader.reset()
             
             val firstCharsString = String(firstChars)
-            Log.d(TAG, "First chars of file: ${firstCharsString.take(20)}...")
+            Log.d(TAG, "First chars of file: ${firstCharsString.take(100)}...")
             
             // Initialize batch processing
             val entries = mutableListOf<DictionaryEntryEntity>()
             
-            // Different dictionaries use different formats
-            entriesProcessed = when {
-                firstCharsString.trimStart().startsWith("[") -> {
-                    // Array format (includes both standard and Spanish array-in-array format)
-                    Log.d(TAG, "Processing array-based dictionary format")
-                    processArrayFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed)
+            // Look for common patterns in dictionary formats
+            val isArrayFormat = firstCharsString.trimStart().startsWith("[")
+            val isObjectFormat = firstCharsString.trimStart().startsWith("{")
+            val containsTermField = firstCharsString.contains("\"term\"")
+            
+            // Look for clues of array-of-arrays format
+            val containsArraySeparators = firstCharsString.contains("],[") || 
+                                         firstCharsString.contains("], [")
+            val containsPositionMarkers = firstCharsString.contains(",0,") || 
+                                         firstCharsString.contains(",1,")
+            
+            // Additional array format checks
+            val isComplexArrayFormat = isArrayFormat && containsArraySeparators && containsPositionMarkers
+            
+            Log.d(TAG, "Dictionary format analysis: " +
+                      "isArrayFormat=$isArrayFormat, " +
+                      "isObjectFormat=$isObjectFormat, " +
+                      "containsTermField=$containsTermField, " +
+                      "containsArraySeparators=$containsArraySeparators, " +
+                      "isComplexArrayFormat=$isComplexArrayFormat")
+            
+            // Try special processing for array dictionaries first
+            if (isArrayFormat && (containsArraySeparators || firstCharsString.contains("\"abada\"") || 
+                                 firstCharsString.contains("\"abrogable\""))) {
+                // Direct array file processing - this is a special case for the array-es dictionary
+                Log.d(TAG, "Detected array-es dictionary format - using direct JSON parsing")
+                
+                try {
+                    // Close and reopen the file to ensure we start from the beginning
+                    bufferedReader.close()
+                    fileStream.close()
+                    
+                    // Read the entire file as a JSON string
+                    val jsonContent = termBankFile.readText()
+                    
+                    // Parse the top-level array
+                    val topArray = JSONArray(jsonContent)
+                    Log.d(TAG, "Successfully parsed top-level array with ${topArray.length()} entries")
+                    
+                    // Process each entry in the array
+                    for (i in 0 until topArray.length()) {
+                        try {
+                            val entryArray = topArray.getJSONArray(i)
+                            val parsedEntry = parseTermBankEntry(entryArray, dictionaryId)
+                            
+                            if (parsedEntry != null) {
+                                entries.add(parsedEntry)
+                                entriesProcessed++
+                                
+                                // Save batch when limit reached
+                                if (entries.size >= BATCH_SIZE) {
+                                    dictionaryRepository.importDictionaryEntries(entries)
+                                    Log.d(TAG, "Saved batch of ${entries.size} entries, total processed: $entriesProcessed")
+                                    entries.clear()
+                                }
+                                
+                                // Log progress
+                                if (entriesProcessed <= 10 || entriesProcessed % 100 == 0) {
+                                    Log.d(TAG, "Processed entry #$entriesProcessed: term='${parsedEntry.term}'")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error processing array entry at index $i: ${e.message}")
+                        }
+                    }
+                    
+                    // Return early
+                    return entriesProcessed
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in direct array processing, falling back to standard processing: ${e.message}")
+                    
+                    // Reopen the file for standard processing
+                    fileStream = FileInputStream(termBankFile)
+                    bufferedReader = BufferedReader(InputStreamReader(fileStream), 16384)
                 }
-                firstCharsString.trimStart().startsWith("{") || firstCharsString.contains("\"term\"") -> {
+            }
+            
+            // Standard processing for other dictionary formats
+            entriesProcessed = when {
+                isComplexArrayFormat -> {
+                    // Complex array format with nested entries
+                    Log.d(TAG, "Processing complex array dictionary format with nested entries")
+                    processArrayInArrayFormat(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
+                }
+                isArrayFormat -> {
+                    // Array format (includes both standard and array-in-array format)
+                    Log.d(TAG, "Processing array-based dictionary format")
+                    processArrayFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
+                }
+                isObjectFormat || containsTermField -> {
                     // Object-based format with explicit term/reading/definition fields
                     Log.d(TAG, "Processing object-based dictionary format")
-                    processObjectFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed)
+                    processObjectFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
                 }
                 else -> {
                     // Simple text format (term:reading:definition)
                     Log.d(TAG, "Processing simple text dictionary format")
-                    processSimpleTextDictionary(bufferedReader, fileSize, entries, entriesProcessed)
+                    processSimpleTextDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
                 }
             }
             
@@ -284,20 +526,53 @@ class MainViewModel : ViewModel() {
         bufferedReader: BufferedReader,
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
-        entriesProcessed: Int
+        entriesProcessed: Int,
+        dictionaryId: Long
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
         
         try {
-            // Check if the first entry looks like part of a top-level array (Spanish dictionary format)
+            // Check if the first entry looks like part of a top-level array format
             val hasTopLevelArray = hasTopLevelArray(bufferedReader)
+            
+            // Special handling for array format detection - try to validate actual content
+            try {
+                bufferedReader.mark(5000)
+                val testChars = CharArray(1000)
+                bufferedReader.read(testChars, 0, 1000)
+                val contentSample = String(testChars)
+                
+                // Log first 100 chars to diagnose format issues
+                Log.d(TAG, "Dictionary content sample: ${contentSample.take(100)}...")
+                
+                // Look for specific array patterns that indicate this is an array of entries
+                val containsMultipleArrays = contentSample.contains("],[") || contentSample.contains("], [")
+                val containsNumericPosition = contentSample.contains(",0,") // Common in array format dictionaries
+                
+                if (containsMultipleArrays && containsNumericPosition && !hasTopLevelArray) {
+                    Log.d(TAG, "Content suggests this is a top-level array format despite initial detection. Forcing array processing.")
+                    bufferedReader.reset()
+                    processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId)
+                    return processedCount
+                }
+                
+                // Reset to the beginning
+                bufferedReader.reset()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during additional format detection: ${e.message}")
+                try {
+                    bufferedReader.reset()
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Failed to reset reader: ${ex.message}")
+                }
+            }
             
             if (hasTopLevelArray) {
                 // Process the file as one giant line with array of arrays
                 Log.d(TAG, "Processing array-in-array format dictionary")
                 // We need a fresh reader since we can't reliably reset
-                processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount)
+                processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId)
             } else {
                 // Process line by line (standard format)
                 Log.d(TAG, "Processing multi-line array format dictionary")
@@ -339,7 +614,7 @@ class MainViewModel : ViewModel() {
                                 try {
                                     // Parse the entry
                                     val jsonArray = JSONArray(sb.toString())
-                                    val parsedEntry = parseTermBankEntry(jsonArray)
+                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId)
                                     if (parsedEntry != null) {
                                         entries.add(parsedEntry)
                                         processedCount++
@@ -377,26 +652,71 @@ class MainViewModel : ViewModel() {
     
     /**
      * Check if this dictionary has a top-level array format
-     * Spanish dictionaries have format: [[entry1], [entry2], ...]
-     * Standard dictionaries have format: [entry1]
+     * Various dictionary formats include:
+     * 1. [[entry1], [entry2], ...] - Array of arrays (most common in Yomitan)
+     * 2. [{"type":"structured-content",...}, {...}] - Array of objects with structured content
+     * 3. [{term:"word", ...}, {...}] - Array of objects with direct term fields
+     * 4. [["word", "reading", ...], ["word2", ...]] - Simple arrays of strings
+     * We need to detect all these formats and process them as a top-level array.
      */
     private fun hasTopLevelArray(reader: BufferedReader): Boolean {
         try {
-            // Check if this is an array of arrays format - common in Spanish dictionaries
-            reader.mark(1000) // Mark so we can reset
+            // Mark so we can reset after checking
+            reader.mark(2000) // Increased mark limit to handle larger headers
             
-            // Read the first 100 characters to see if it's an array of arrays
-            val firstChunk = CharArray(100)
-            reader.read(firstChunk, 0, 100)
+            // Read more characters to better detect the format
+            val firstChunk = CharArray(500) // Increased sample size
+            reader.read(firstChunk, 0, 500)
             val startStr = String(firstChunk)
-            
-            // Look for a pattern that suggests array of arrays - the key is nested brackets at start
-            val hasTopLevelArray = startStr.trim().startsWith("[[")
             
             // Reset the reader to the beginning
             reader.reset()
             
-            Log.d(TAG, "Dictionary format check: ${startStr.take(20)}... hasTopLevelArray=$hasTopLevelArray")
+            // Trim leading whitespace
+            val trimmedStart = startStr.trimStart()
+            
+            // The file must start with an opening bracket to be a JSON array
+            if (!trimmedStart.startsWith("[")) {
+                Log.d(TAG, "Not a JSON array format")
+                return false
+            }
+            
+            // Now check various array formats:
+            
+            // 1. Array of arrays: [[...], [...]]
+            val isArrayOfArrays = trimmedStart.startsWith("[[") && 
+                                 (trimmedStart.contains("],[") || 
+                                  trimmedStart.contains("], ["))
+            
+            // 2. Array of objects: [{...}, {...}]
+            val isArrayOfObjects = trimmedStart.startsWith("[{") && 
+                                  (trimmedStart.contains("},{") || 
+                                   trimmedStart.contains("}, {"))
+            
+            // 3. Check for simple array containing strings (like ["word", "reading", ...])
+            val containsQuotedStrings = trimmedStart.contains("\",\"") || 
+                                       trimmedStart.contains("\", \"")
+                                        
+            // 4. Check if it has structured content objects
+            val hasStructuredContent = trimmedStart.contains("\"type\"") && 
+                                      trimmedStart.contains("\"structured-content\"")
+            
+            // Special detection for array formats with string arrays at position 5 (definitions)
+            val hasFifthPositionArray = trimmedStart.contains("\",\"\",\"\",\"\",0,\\[") || 
+                                       trimmedStart.contains("\",\"\",\"\",\"\",0, [")
+            
+            // Combine all checks
+            val hasTopLevelArray = isArrayOfArrays || isArrayOfObjects || 
+                                  hasStructuredContent || hasFifthPositionArray
+            
+            Log.d(TAG, "Dictionary format analysis: " +
+                        "isArrayOfArrays=$isArrayOfArrays, " +
+                        "isArrayOfObjects=$isArrayOfObjects, " +
+                        "hasQuotedStrings=$containsQuotedStrings, " +
+                        "hasFifthPositionArray=$hasFifthPositionArray, " +
+                        "hasStructuredContent=$hasStructuredContent, " + 
+                        "hasTopLevelArray=$hasTopLevelArray")
+            
             return hasTopLevelArray
         } catch (e: Exception) {
             Log.e(TAG, "Error checking array format", e)
@@ -413,19 +733,28 @@ class MainViewModel : ViewModel() {
         reader: BufferedReader, 
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
-        entriesProcessed: Int
+        entriesProcessed: Int,
+        dictionaryId: Long
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
         var charRead: Int
         
         try {
-            // Skip the initial opening bracket of the outer array
-            reader.mark(1)
-            if (reader.read().toChar() != '[') {
-                Log.e(TAG, "Expected outer array start but didn't find it")
+            // Skip the initial opening bracket of the outer array and any whitespace
+            var c: Char
+            do {
+                reader.mark(1)
+                c = reader.read().toChar()
+            } while (c.isWhitespace())
+            
+            if (c != '[') {
+                Log.e(TAG, "Expected outer array start '[' but found '$c'")
                 return processedCount
             }
+            
+            // Log the start of processing
+            Log.d(TAG, "Starting to process array-in-array formatted dictionary")
             
             // Now parse each entry in the array manually
             var depth = 1  // We're inside the outer array
@@ -463,17 +792,93 @@ class MainViewModel : ViewModel() {
                         // End of entry, process it
                         inEntry = false
                         try {
-                            val jsonArray = JSONArray(entryBuilder.toString())
-                            val parsedEntry = parseTermBankEntry(jsonArray)
-                            if (parsedEntry != null) {
-                                entries.add(parsedEntry)
-                                processedCount++
+                            // Get the entry string
+                            val entryStr = entryBuilder.toString()
+                            
+                            // Detailed logging for the first few entries or on errors
+                            if (processedCount < 5) {
+                                Log.d(TAG, "Processing entry #$processedCount: ${entryStr.take(100)}...")
+                            }
+                            
+                            try {
+                                val jsonArray = JSONArray(entryStr)
+                                val startWithBracket = entryStr.trim().startsWith("[[")
                                 
-                                // If we've reached the batch size, save to database
-                                if (entries.size >= BATCH_SIZE) {
-                                    dictionaryRepository.importDictionaryEntries(entries)
-                                    entries.clear()
+                                // Check if this is potentially a top-level array of entries
+                                if (startWithBracket && jsonArray.length() > 0 && 
+                                    jsonArray.opt(0) is JSONArray && entryStr.contains("],[")) {
+                                        
+                                    // This is a nested array with multiple entries - process each one
+                                    Log.d(TAG, "Found nested array with ${jsonArray.length()} entries")
+                                    
+                                    for (i in 0 until jsonArray.length()) {
+                                        try {
+                                            val nestedEntry = jsonArray.optJSONArray(i)
+                                            if (nestedEntry != null) {
+                                                // Process each nested entry
+                                                val parsedEntry = parseTermBankEntry(nestedEntry, dictionaryId)
+                                                if (parsedEntry != null) {
+                                                    entries.add(parsedEntry)
+                                                    processedCount++
+                                                    entryCount++
+                                                    
+                                                    // Log entries
+                                                    if (processedCount <= 10 || processedCount % 100 == 0) {
+                                                        Log.d(TAG, "Processed nested entry #$processedCount: " +
+                                                              "term='${parsedEntry.term}', reading='${parsedEntry.reading}'")
+                                                    }
+                                                    
+                                                    // Save batch if needed
+                                                    if (entries.size >= BATCH_SIZE) {
+                                                        val savedCount = dictionaryRepository.importDictionaryEntries(entries)
+                                                        Log.d(TAG, "Saved batch of ${entries.size} entries")
+                                                        entries.clear()
+                                                    }
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "Error processing nested entry at index $i: ${e.message}")
+                                        }
+                                    }
+                                } else {
+                                    // Regular single entry - process normally
+                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId)
+                                    
+                                    if (parsedEntry != null) {
+                                        // Add to the current batch
+                                        entries.add(parsedEntry)
+                                        processedCount++
+                                        entryCount++ // For logging consistency
+                                        
+                                        // Log successful entries periodically
+                                        if (processedCount <= 10 || processedCount % 100 == 0) {
+                                            Log.d(TAG, "Successfully processed entry #$processedCount: " +
+                                                  "term='${parsedEntry.term}', reading='${parsedEntry.reading}', " +
+                                                  "definition length=${parsedEntry.definition.length}")
+                                        }
+                                        
+                                        // If we've reached the batch size, save to database
+                                        if (entries.size >= BATCH_SIZE) {
+                                            try {
+                                                val savedCount = dictionaryRepository.importDictionaryEntries(entries)
+                                                Log.d(TAG, "Saved batch of ${entries.size} entries, DB returned $savedCount")
+                                                entries.clear()
+                                                
+                                                // Log progress after each batch
+                                                val progress = (bytesRead * 100 / fileSize).toInt()
+                                                Log.d(TAG, "Processed $processedCount entries so far ($progress% of file)")
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "Error saving entries to database: ${e.message}", e)
+                                            }
+                                        }
+                                    } else if (processedCount < 10) {
+                                        // Log entry parsing failures
+                                        Log.w(TAG, "Failed to parse entry: ${entryStr.take(150)}...")
+                                    }
                                 }
+                            } catch (e: Exception) {
+                                // Log parsing errors
+                                Log.e(TAG, "Error parsing entry JSON: ${e.message}, Entry start: ${entryStr.take(50)}...")
                             }
                         } catch (e: Exception) {
                             // Skip errors in individual entries
@@ -505,7 +910,8 @@ class MainViewModel : ViewModel() {
         bufferedReader: BufferedReader,
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
-        entriesProcessed: Int
+        entriesProcessed: Int,
+        dictionaryId: Long
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -548,7 +954,7 @@ class MainViewModel : ViewModel() {
                         try {
                             // Parse the entry
                             val jsonObject = JSONObject(sb.toString())
-                            val parsedEntry = parseObjectTermBankEntry(jsonObject)
+                            val parsedEntry = parseObjectTermBankEntry(jsonObject, dictionaryId)
                             if (parsedEntry != null) {
                                 entries.add(parsedEntry)
                                 processedCount++
@@ -587,7 +993,8 @@ class MainViewModel : ViewModel() {
         bufferedReader: BufferedReader,
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
-        entriesProcessed: Int
+        entriesProcessed: Int,
+        dictionaryId: Long
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -607,7 +1014,7 @@ class MainViewModel : ViewModel() {
                         }
                         
                         // Parse the line (we support various simple formats)
-                        val parsedEntry = parseSimpleTextEntry(currentLine)
+                        val parsedEntry = parseSimpleTextEntry(currentLine, dictionaryId)
                         if (parsedEntry != null) {
                             entries.add(parsedEntry)
                             processedCount++
@@ -631,12 +1038,105 @@ class MainViewModel : ViewModel() {
     /**
      * Parse a single term bank entry in array format
      */
-    private fun parseTermBankEntry(termEntry: JSONArray): DictionaryEntryEntity? {
+    private fun parseTermBankEntry(termEntry: JSONArray, dictionaryId: Long): DictionaryEntryEntity? {
         return try {
-            // Based on your sample, entries are arrays with specific positions
-            // [0] = term, [1] = reading, [2] = tags?, [3] = part of speech, [5] = glosses/content
-            val term = termEntry.getString(0)
+            // Validate entry structure
+            if (termEntry.length() < 1) {
+                Log.e(TAG, "Invalid term entry: array too short, need at least term at position 0")
+                return null
+            }
+            
+            // Debug log the entire entry structure for the first few entries
+            if (entryCount < 5) {
+                Log.d(TAG, "Processing entry structure: length=${termEntry.length()}, content=${termEntry.toString().take(100)}...")
+                
+                // Log the first few positions to better understand the structure
+                for (i in 0 until Math.min(termEntry.length(), 6)) {
+                    val item = termEntry.opt(i)
+                    val preview = when (item) {
+                        is String -> "\"${item.take(20)}${if (item.length > 20) "..." else ""}\""
+                        is JSONArray -> "JSONArray(${item.length()})"
+                        is JSONObject -> "JSONObject keys: ${if (item.keys().hasNext()) item.keys().asSequence().take(3).joinToString() else "empty"}"
+                        null -> "null"
+                        else -> item.toString().take(20)
+                    }
+                    Log.d(TAG, "  Position $i: $preview")
+                }
+            }
+            
+            // Based on Yomitan dictionary format:
+            // [0] = term, [1] = reading, [2] = tags, [3] = part of speech/rules, [4] = score, [5] = glosses/content
+            
+            // Check if termEntry might be a whole file parsed as a single entry
+            // This is a special case for array-es dictionaries
+            if (termEntry.length() > 0) {
+                val firstItem = termEntry.opt(0)
+                if (firstItem is JSONArray) {
+                    // This appears to be a nested array structure like [["term", ...], ["term2", ...]]
+                    // Process the first entry and return it
+                    Log.d(TAG, "Found nested array structure - extracting first entry")
+                    
+                    try {
+                        // Get the first entry from the array
+                        val nestedEntry = termEntry.getJSONArray(0)
+                        
+                        // Make a recursive call to properly process the nested entry
+                        return parseTermBankEntry(nestedEntry, dictionaryId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error extracting nested entry: ${e.message}")
+                    }
+                }
+            }
+            
+            // Get the term (required)
+            // Check for string that looks like [["abada", ... - this is misformatted JSON
+            val termString = termEntry.getString(0)
+            if (termString.startsWith("[[\"") || termString.contains("],[")) {
+                // This is a string representation of a JSON array - needs special handling
+                Log.w(TAG, "Found string containing JSON array: ${termString.take(50)}...")
+                
+                try {
+                    // Try to parse the string as a JSON array
+                    val parsedArray = JSONArray(termString)
+                    if (parsedArray.length() > 0) {
+                        // Extract the first entry from the array
+                        val firstEntry = parsedArray.getJSONArray(0)
+                        
+                        // Create a dictionary entry from this first item
+                        return DictionaryEntryEntity(
+                            dictionaryId = dictionaryId,
+                            term = firstEntry.getString(0),
+                            reading = if (firstEntry.length() > 1) firstEntry.getString(1) else "",
+                            definition = if (firstEntry.length() > 5) {
+                                val defArray = firstEntry.getJSONArray(5)
+                                val defBuilder = StringBuilder()
+                                for (i in 0 until defArray.length()) {
+                                    if (defBuilder.isNotEmpty()) defBuilder.append("\n")
+                                    defBuilder.append(defArray.getString(i))
+                                }
+                                defBuilder.toString()
+                            } else "",
+                            partOfSpeech = if (firstEntry.length() > 2) firstEntry.getString(2) else "",
+                            tags = emptyList(),
+                            isHtmlContent = false
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing JSON string: ${e.message}")
+                }
+            }
+            
+            // Normal processing if the above special case handling didn't return
+            val term = termString // Assign to variable term for consistency with rest of method
+            if (term.isEmpty()) {
+                Log.e(TAG, "Empty term in entry, skipping: ${termEntry.toString().take(50)}...")
+                return null
+            }
+            
+            // Get the reading (optional)
             val reading = termEntry.optString(1, "")
+            
+            // Get the part of speech (optional)
             val partOfSpeech = termEntry.optString(3, "")
 
             // Extract glosses from the structured content or simple array
@@ -644,21 +1144,66 @@ class MainViewModel : ViewModel() {
             
             // Format 3 dictionaries (Spanish) often have simple array of strings at position 5
             val contentObj = termEntry.opt(5)
+            
+            // Flag to track if the content is HTML
+            var isHtml = false
+            
             if (contentObj is JSONArray) {
-                // Simple array of strings - common in Spanish dictionaries
-                val defBuilder = StringBuilder()
+                // Check if any item is a structured content object
+                var hasStructuredContent = false
                 for (i in 0 until contentObj.length()) {
-                    if (defBuilder.isNotEmpty()) defBuilder.append("\n")
-                    defBuilder.append((i + 1).toString()).append(". ")
-                    defBuilder.append(contentObj.getString(i))
+                    val item = contentObj.opt(i)
+                    if (item is JSONObject && item.has("type") && item.getString("type") == "structured-content") {
+                        hasStructuredContent = true
+                        break
+                    }
                 }
-                definition = defBuilder.toString()
+                
+                if (hasStructuredContent) {
+                    // Process as structured content
+                    val htmlBuilder = StringBuilder()
+                    for (i in 0 until contentObj.length()) {
+                        val item = contentObj.opt(i)
+                        if (item is JSONObject && item.has("type") && item.getString("type") == "structured-content") {
+                            // Convert structured content to HTML
+                            htmlBuilder.append(StructuredContentHtmlConverter.convertToHtml(item))
+                        } else if (item is String) {
+                            // Wrap plain strings in paragraph tags
+                            htmlBuilder.append("<p>").append(item).append("</p>")
+                        }
+                    }
+                    definition = htmlBuilder.toString()
+                    isHtml = true
+                } else {
+                    // Simple array of strings - convert to HTML ordered list
+                    definition = StructuredContentHtmlConverter.convertStringArrayToHtml(contentObj)
+                    isHtml = true
+                }
             } else if (contentObj is JSONObject) {
-                // Structured content - more common in Japanese dictionaries
-                definition = extractDefinitionFromStructuredContent(contentObj)
+                // Check if this is structured content
+                if (contentObj.has("type") && contentObj.getString("type") == "structured-content") {
+                    // Debug the structured content object
+                    if (entryCount < 5) {
+                        Log.d(TAG, "Found structured content at position 5: ${contentObj.toString().take(150)}...")
+                    }
+                    
+                    // Convert structured content to HTML
+                    definition = StructuredContentHtmlConverter.convertToHtml(contentObj)
+                    
+                    // Debug the generated HTML
+                    if (entryCount < 5) {
+                        Log.d(TAG, "Generated HTML: ${definition.take(150)}...")
+                    }
+                    
+                    isHtml = true
+                } else {
+                    // Process as regular JSON object
+                    definition = extractDefinitionFromStructuredContent(contentObj)
+                }
             } else if (contentObj is String) {
-                // Simple string definition
-                definition = contentObj
+                // Simple string definition - wrap in paragraph tag
+                definition = "<p>$contentObj</p>"
+                isHtml = true
             }
 
             // Get the tags
@@ -675,13 +1220,23 @@ class MainViewModel : ViewModel() {
                 extractTags(termEntry.optString(2, ""))
             }
 
+            // Check if definition looks like raw HTML/JSON
+            if (definition.contains("<tag>") || definition.contains("\"content\":") || 
+                definition.contains("\"tag\":")) {
+                // Found raw JSON or invalid HTML - turn off HTML flag
+                Log.w(TAG, "Found raw JSON/HTML in definition - turning off HTML flag")
+                isHtml = false
+            }
+            
             // Create entry and log definition info
             val entry = DictionaryEntryEntity(
+                dictionaryId = dictionaryId,
                 term = term,
                 reading = reading,
                 definition = definition,
                 partOfSpeech = partOfSpeech,
-                tags = tags
+                tags = tags,
+                isHtmlContent = isHtml
             )
             
             // Log some details about the entry for debugging - limit frequency for performance
@@ -707,7 +1262,7 @@ class MainViewModel : ViewModel() {
     /**
      * Parse a term bank entry in object format
      */
-    private fun parseObjectTermBankEntry(termEntry: JSONObject): DictionaryEntryEntity? {
+    private fun parseObjectTermBankEntry(termEntry: JSONObject, dictionaryId: Long): DictionaryEntryEntity? {
         return try {
             // Get the fields
             val term = termEntry.getString("term")
@@ -716,36 +1271,46 @@ class MainViewModel : ViewModel() {
             
             // Get the definition which might be in different formats
             var definition = ""
+            var isHtml = false
+
             if (termEntry.has("definition")) {
-                // Direct definition field
-                definition = termEntry.getString("definition")
-            } else if (termEntry.has("definitions")) {
-                // Array of definitions
-                val definitions = termEntry.getJSONArray("definitions")
-                val defBuilder = StringBuilder()
-                
-                for (i in 0 until definitions.length()) {
-                    if (defBuilder.isNotEmpty()) defBuilder.append("\n")
-                    defBuilder.append((i + 1).toString()).append(". ")
-                    defBuilder.append(definitions.getString(i))
+                // Direct definition field - check if it's a structured content object
+                val defValue = termEntry.get("definition")
+                if (defValue is JSONObject && defValue.has("type") && 
+                    defValue.getString("type") == "structured-content") {
+                    // Convert structured content to HTML
+                    definition = com.abaga129.tekisuto.util.StructuredContentHtmlConverter.convertToHtml(defValue)
+                    isHtml = true
+                } else if (defValue is String) {
+                    // Simple string definition - wrap in HTML paragraph
+                    definition = "<p>$defValue</p>"
+                    isHtml = true
                 }
+            } else if (termEntry.has("definitions")) {
+                // Array of definitions - check if any are structured content
+                val definitions = termEntry.getJSONArray("definitions")
                 
-                definition = defBuilder.toString()
+                // Convert to HTML list
+                definition = com.abaga129.tekisuto.util.StructuredContentHtmlConverter.convertStringArrayToHtml(definitions)
+                isHtml = true
             } else if (termEntry.has("meaning")) {
                 // Single meaning field
-                definition = termEntry.getString("meaning")
-            } else if (termEntry.has("meanings")) {
-                // Array of meanings
-                val meanings = termEntry.getJSONArray("meanings")
-                val defBuilder = StringBuilder()
-                
-                for (i in 0 until meanings.length()) {
-                    if (defBuilder.isNotEmpty()) defBuilder.append("\n")
-                    defBuilder.append((i + 1).toString()).append(". ")
-                    defBuilder.append(meanings.getString(i))
+                val meaning = termEntry.get("meaning")
+                if (meaning is JSONObject && meaning.has("type") && 
+                    meaning.getString("type") == "structured-content") {
+                    // Convert structured content to HTML
+                    definition = com.abaga129.tekisuto.util.StructuredContentHtmlConverter.convertToHtml(meaning)
+                    isHtml = true
+                } else if (meaning is String) {
+                    // Simple string meaning - wrap in HTML paragraph
+                    definition = "<p>$meaning</p>"
+                    isHtml = true
                 }
-                
-                definition = defBuilder.toString()
+            } else if (termEntry.has("meanings")) {
+                // Array of meanings - convert to HTML list
+                val meanings = termEntry.getJSONArray("meanings")
+                definition = com.abaga129.tekisuto.util.StructuredContentHtmlConverter.convertStringArrayToHtml(meanings)
+                isHtml = true
             }
             
             // Get the tags
@@ -764,11 +1329,13 @@ class MainViewModel : ViewModel() {
             
             // Create entry
             val entry = DictionaryEntryEntity(
+                dictionaryId = dictionaryId,
                 term = term,
                 reading = reading,
                 definition = definition,
                 partOfSpeech = partOfSpeech,
-                tags = tags
+                tags = tags,
+                isHtmlContent = isHtml
             )
             
             // Log some details about the entry for debugging
@@ -789,7 +1356,7 @@ class MainViewModel : ViewModel() {
      * Parse a term from a simple text format
      * Supports various formats like "term:reading:definition" or "term<tab>reading<tab>definition"
      */
-    private fun parseSimpleTextEntry(line: String): DictionaryEntryEntity? {
+    private fun parseSimpleTextEntry(line: String, dictionaryId: Long): DictionaryEntryEntity? {
         return try {
             // Try to split the line in various ways (tab, colon, etc.)
             val parts = when {
@@ -817,11 +1384,13 @@ class MainViewModel : ViewModel() {
             
             // Create entry
             val entry = DictionaryEntryEntity(
+                dictionaryId = dictionaryId,
                 term = term,
                 reading = reading,
                 definition = definition,
                 partOfSpeech = "",
-                tags = emptyList()
+                tags = emptyList(),
+                isHtmlContent = false // Explicitly set to false for simple text entries
             )
             
             // Log some details about the entry for debugging

@@ -58,7 +58,7 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                repository.clearDictionary()
+                repository.clearAllDictionaries()
                 loadDictionaryStats()
                 _entries.value = emptyList()
                 android.util.Log.d("DictionaryViewModel", "Dictionary cleared successfully")
@@ -91,7 +91,14 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
             _isLoading.value = true
             try {
                 android.util.Log.d("DictionaryViewModel", "Searching for: '$query'")
-                val results = repository.searchDictionary(query)
+                // Use fast search for interactive typing, switch to priority-based for the final result
+                val results = if (query.length <= 3) {
+                    // Use fast search for short queries during typing
+                    repository.searchDictionary(query, fastSearch = true)
+                } else {
+                    // Use prioritized search for longer, likely final queries
+                    repository.searchDictionary(query, fastSearch = false)
+                }
                 _entries.value = results
                 android.util.Log.d("DictionaryViewModel", "Search returned ${results.size} results")
                 

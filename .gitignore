@@ -14,5 +14,5 @@
 .cxx
 local.properties
 app/release/**/*
-spanishdict/
+dictionaries/
 screenshots/

@@ -11,6 +11,7 @@ import android.util.Log
 // Removed unused imports
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -48,7 +49,8 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
     private lateinit var noMatchesTextView: TextView
     private lateinit var selectionHintTextView: TextView
     private lateinit var dictionaryMatchAdapter: DictionaryMatchAdapter
-    private lateinit var ankiButton: Button
+    private lateinit var dictionarySearchEditText: EditText
+    private lateinit var dictionarySearchButton: Button
     
     private lateinit var ankiDroidHelper: AnkiDroidHelper
     
@@ -78,12 +80,37 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         loadingIndicator = findViewById(R.id.loading_indicator)
         noMatchesTextView = findViewById(R.id.no_matches_text)
         selectionHintTextView = findViewById(R.id.selection_hint)
-        ankiButton = findViewById(R.id.configure_anki_button)
+        dictionarySearchEditText = findViewById(R.id.dictionary_search_edit_text)
+        dictionarySearchButton = findViewById(R.id.dictionary_search_button)
 
         // Set up RecyclerView
         dictionaryMatchAdapter = DictionaryMatchAdapter()
         dictionaryMatchAdapter.setLifecycleScope(lifecycleScope)
         dictionaryMatchAdapter.setOnAnkiExportListener(this)
+        
+        // Set up a text watcher for the dictionary search EditText to convert to lowercase
+        dictionarySearchEditText.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            
+            override fun afterTextChanged(s: android.text.Editable?) {
+                s?.let { editable ->
+                    val text = editable.toString()
+                    // If text is not already lowercase, convert it
+                    if (text != text.lowercase()) {
+                        // Remove the text watcher temporarily to avoid infinite loop
+                        dictionarySearchEditText.removeTextChangedListener(this)
+                        // Update the text to lowercase
+                        dictionarySearchEditText.setText(text.lowercase())
+                        // Move cursor to the end
+                        dictionarySearchEditText.setSelection(dictionarySearchEditText.text.length)
+                        // Add the text watcher back
+                        dictionarySearchEditText.addTextChangedListener(this)
+                    }
+                }
+            }
+        })
         
         dictionaryMatchesRecyclerView.apply {
             layoutManager = LinearLayoutManager(this@OCRResultActivity)
@@ -197,12 +224,16 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
             onWordClick = { word ->
                 // Handle word click - lookup in dictionary
                 viewModel.findDictionaryMatches(word)
+                // Populate the search field with the clicked word (lowercase)
+                dictionarySearchEditText.setText(word.lowercase())
                 // Show a brief message
                 Toast.makeText(this, "Looking up: $word", Toast.LENGTH_SHORT).show()
             },
             onWordLongClick = { word ->
                 // Long click can still do dictionary lookup for consistency
                 viewModel.findDictionaryMatches(word)
+                // Populate the search field with the clicked word (lowercase)
+                dictionarySearchEditText.setText(word.lowercase())
                 true // Consume the event
             }
         )
@@ -214,6 +245,29 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Search dictionary button
         searchButton.setOnClickListener {
             searchSelectedText()
+        }
+        
+        // Dictionary search button
+        dictionarySearchButton.setOnClickListener {
+            val searchTerm = dictionarySearchEditText.text.toString().trim()
+            if (searchTerm.isNotEmpty()) {
+                // The text is already converted to lowercase by the TextWatcher
+                viewModel.findDictionaryMatches(searchTerm)
+            }
+        }
+        
+        // Setup dictionary search EditText action listener
+        dictionarySearchEditText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                val searchTerm = dictionarySearchEditText.text.toString().trim()
+                if (searchTerm.isNotEmpty()) {
+                    // The text is already converted to lowercase by the TextWatcher
+                    viewModel.findDictionaryMatches(searchTerm)
+                }
+                true
+            } else {
+                false
+            }
         }
 
         // Copy button
@@ -229,11 +283,6 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         // Close button
         closeButton.setOnClickListener {
             finish()
-        }
-        
-        // Configure AnkiDroid button
-        ankiButton.setOnClickListener {
-            startActivity(Intent(this, AnkiDroidConfigActivity::class.java))
         }
     }
     
@@ -261,6 +310,7 @@ class OCRResultActivity : AppCompatActivity(), DictionaryMatchAdapter.OnAnkiExpo
         
         if (ankiDroidHelper.getSavedDeckId() == 0L || ankiDroidHelper.getSavedModelId() == 0L) {
             Toast.makeText(this, R.string.anki_configuration_not_set, Toast.LENGTH_SHORT).show()
+            // Open Anki configuration activity
             val intent = Intent(this, AnkiDroidConfigActivity::class.java)
             startActivity(intent)
             return

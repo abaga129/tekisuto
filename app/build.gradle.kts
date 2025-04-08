@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "0.2-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -26,6 +26,9 @@ android {
         
         // Enable multidex to handle larger codebase
         multiDexEnabled = true
+        
+        // Add BuildConfig field for database name suffix
+        buildConfigField("String", "DB_NAME_SUFFIX", "\"\"")
         
         // Increase memory for dexing process
         javaCompileOptions {
@@ -46,7 +49,10 @@ android {
             )
         }
         debug {
-            // Debug configuration
+            // Debug configuration with a different application ID
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            buildConfigField("String", "DB_NAME_SUFFIX", "\"_debug\"")
         }
     }
     
@@ -72,6 +78,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     lint {
         baseline = file("lint-baseline.xml")
