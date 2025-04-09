@@ -21,6 +21,8 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for langu
 4. Extracted text is matched against your imported dictionaries
 5. Export results to AnkiDroid or save for later reference
 
+For detailed instructions, see the [Tekisuto User Guide](wiki.md).
+
 ## Requirements
 
 - Android 9 (API 28) or newer
