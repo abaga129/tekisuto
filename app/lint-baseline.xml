@@ -19,7 +19,7 @@
         errorLine2="                           ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
-            line="296"
+            line="403"
             column="28"/>
     </issue>
 
@@ -30,8 +30,30 @@
         errorLine2="                           ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
-            line="296"
+            line="403"
             column="28"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="    val dateAdded: Date = Date()       // When it was exported"
+        errorLine2="                          ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
+            line="575"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="DirectDateInstantiation"
+        message="Use the collection&apos;s getTime() method instead of directly instantiating Date"
+        errorLine1="    val dateAdded: Date = Date()       // When it was exported"
+        errorLine2="                          ~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/database/DictionaryRepository.kt"
+            line="575"
+            column="27"/>
     </issue>
 
     <issue
@@ -74,8 +96,19 @@
         errorLine2="                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/viewmodel/MainViewModel.kt"
-            line="1419"
+            line="1462"
             column="71"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="        val requestId = System.currentTimeMillis()"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/ui/OCRResultActivity.kt"
+            line="499"
+            column="25"/>
     </issue>
 
     <issue
@@ -153,6 +186,39 @@
             file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
             line="247"
             column="49"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="            val fileName = &quot;speech_${System.currentTimeMillis()}_${UUID.randomUUID()}.wav&quot;"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/util/SpeechService.kt"
+            line="340"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="            return File(context.cacheDir, &quot;emergency_audio_${System.currentTimeMillis()}.wav&quot;)"
+        errorLine2="                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/util/SpeechService.kt"
+            line="358"
+            column="62"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                val fileName = &quot;${language}_${sanitizedWord}_${System.currentTimeMillis()}.wav&quot;"
+        errorLine2="                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/util/SpeechService.kt"
+            line="380"
+            column="64"/>
     </issue>
 
 </issues>

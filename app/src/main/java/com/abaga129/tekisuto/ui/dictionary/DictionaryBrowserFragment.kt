@@ -14,8 +14,8 @@ import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import kotlinx.coroutines.withContext
 import androidx.core.view.isVisible
+import androidx.lifecycle.coroutineScope
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,7 +26,7 @@ import com.abaga129.tekisuto.ui.adapter.DictionaryMatchAdapter
 import com.abaga129.tekisuto.ui.adapter.DictionaryMatchItemDecoration
 import com.abaga129.tekisuto.viewmodel.DictionaryBrowserViewModel
 
-class DictionaryBrowserFragment : Fragment() {
+class DictionaryBrowserFragment : Fragment(), DictionaryMatchAdapter.OnAnkiExportListener {
 
     private lateinit var viewModel: DictionaryBrowserViewModel
     private lateinit var repository: DictionaryRepository
@@ -88,6 +88,11 @@ class DictionaryBrowserFragment : Fragment() {
             adapter = dictionaryAdapter
             addItemDecoration(DictionaryMatchItemDecoration(resources.getDimensionPixelSize(R.dimen.dictionary_item_spacing)))
         }
+        
+        // Configure the adapter with lifecycle scope, repository, and Anki export listener
+        dictionaryAdapter.setLifecycleScope(lifecycle.coroutineScope)
+        dictionaryAdapter.setDictionaryRepository(repository)
+        dictionaryAdapter.setOnAnkiExportListener(this)
         
         // Setup search functionality
         setupSearch()
@@ -188,5 +193,37 @@ class DictionaryBrowserFragment : Fragment() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+    
+    /**
+     * Handle Anki export request from the adapter
+     */
+    override fun onExportToAnki(entry: com.abaga129.tekisuto.database.DictionaryEntryEntity) {
+        // Launch AnkiDroid config activity for exporting
+        val intent = android.content.Intent(requireContext(), com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity::class.java).apply {
+            putExtra("term", entry.term)
+            putExtra("reading", entry.reading)
+            putExtra("definition", entry.definition)
+            putExtra("partOfSpeech", entry.partOfSpeech)
+            putExtra("dictionaryId", entry.dictionaryId)
+            putExtra("isHtmlContent", entry.isHtmlContent)
+        }
+        startActivity(intent)
+    }
+    
+    /**
+     * Refresh the UI when returning to the fragment to update exported status indicators
+     */
+    override fun onResume() {
+        super.onResume()
+        
+        // Force refresh the adapter to update exported status indicators
+        val currentEntries = viewModel.entries.value
+        if (currentEntries != null && currentEntries.isNotEmpty()) {
+            // Recreate the list to force DiffUtil to recheck all items
+            dictionaryAdapter.submitList(null)
+            dictionaryAdapter.submitList(currentEntries.toList())
+            android.util.Log.d("DictionaryBrowserFragment", "Refreshed adapter with ${currentEntries.size} entries to update exported status")
+        }
     }
 }

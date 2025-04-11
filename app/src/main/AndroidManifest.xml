@@ -77,6 +77,11 @@
             android:label="@string/anki_config_title" />
             
         <activity
+            android:name=".ui.anki.AnkiPackageImportActivity"
+            android:exported="false"
+            android:label="@string/import_anki_package_title" />
+            
+        <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false"
             android:label="@string/ocr_settings_title" />

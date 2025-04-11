@@ -178,4 +178,37 @@
         <item>ja</item>
         <item>ko</item>
     </string-array>
+    
+    <!-- Audio/Speech Settings -->
+    <string name="audio_settings_title">Text-to-Speech Settings</string>
+    <string name="enable_audio_title">Enable Text-to-Speech</string>
+    <string name="enable_audio_summary">Generate audio for words and dictionary entries</string>
+    <string name="azure_speech_key_title">Azure Speech API Key</string>
+    <string name="azure_speech_key_summary">Enter your Azure Cognitive Services Speech API key</string>
+    <string name="azure_speech_region_title">Azure Speech Region</string>
+    <string name="azure_speech_region_summary">Region for your Azure Speech resource (e.g., eastus)</string>
+    <string name="play_audio">Play Audio</string>
+    <string name="audio_unavailable">Audio unavailable</string>
+    <string name="generating_audio">Generating audio…</string>
+    <string name="audio_generation_failed">Failed to generate audio</string>
+    <string name="audio_generation_missing_api_key">Azure Speech API key not configured</string>
+    <string name="audio_playing">Playing audio…</string>
+    <string name="audio_field">Audio File:</string>
+    
+    <!-- Anki Package Import -->
+    <string name="import_anki_package_title">Import Anki Package</string>
+    <string name="import_anki_package_description">Import words from an Anki export (.apkg) file. Select the file, choose which field contains the words, and optionally filter by deck.</string>
+    <string name="select_apkg_file">Select .apkg File</string>
+    <string name="select_word_field">Select Field Containing Words:</string>
+    <string name="select_deck_optional">Select Deck (Optional):</string>
+    <string name="import_words">Import Words</string>
+    <string name="processing_file">Processing file…</string>
+    <string name="file_processed">File processed successfully. Select a field and click Import.</string>
+    <string name="no_fields_found">No fields found in the Anki package.</string>
+    <string name="error_processing_file">Error processing file: %1$s</string>
+    <string name="importing_words_from_anki">Importing words from Anki package…</string>
+    <string name="imported_words_count">Imported %1$d words from Anki package</string>
+    <string name="error_importing_words">Error importing words: %1$s</string>
+    <string name="select_field_error">Please select a field to import words from</string>
+    <string name="all_decks">All Decks</string>
 </resources>

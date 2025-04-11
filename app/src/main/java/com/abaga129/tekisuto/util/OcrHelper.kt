@@ -88,8 +88,16 @@ class OcrHelper(private val context: Context) {
      * Build formatted text from ML Kit's Text object
      */
     private fun buildRecognizedText(text: Text): String {
+        // Check if the text is likely vertical Japanese
+        val isVerticalJapanese = isLikelyVerticalJapanese(text)
+        
+        if (isVerticalJapanese) {
+            Log.d(TAG, "Detected vertical Japanese text - applying special processing")
+            return processVerticalJapaneseText(text)
+        }
+        
+        // Standard horizontal text processing
         val stringBuilder = StringBuilder()
-
         for (textBlock in text.textBlocks) {
             for (line in textBlock.lines) {
                 stringBuilder.append(line.text).append("\n")
@@ -104,6 +112,95 @@ class OcrHelper(private val context: Context) {
 
         val rawText = stringBuilder.toString().trim()
         return correctOcrErrors(rawText)
+    }
+    
+    /**
+     * Detects if the recognized text is likely vertical Japanese
+     * based on the arrangement and content of text blocks and characters
+     */
+    private fun isLikelyVerticalJapanese(text: Text): Boolean {
+        // If not Japanese language, return false immediately
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val language = sharedPreferences.getString("ocr_language", "latin") ?: "latin"
+        if (language != "japanese") {
+            return false
+        }
+        
+        // Check if there are multiple text blocks arranged vertically
+        val blocks = text.textBlocks
+        if (blocks.size < 2) return false
+        
+        // Count vertical vs horizontal arrangements
+        var verticalCount = 0
+        var horizontalCount = 0
+        
+        // Check if the blocks are arranged in vertical columns (right to left)
+        val sortedBlocksX = blocks.sortedBy { it.boundingBox?.centerX() ?: 0 }
+        
+        // Check text content - Japanese text will have hiragana/katakana/kanji
+        var hasJapaneseChars = false
+        val japanesePattern = Regex("[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+")
+        
+        for (block in blocks) {
+            // Check for Japanese characters
+            if (japanesePattern.containsMatchIn(block.text)) {
+                hasJapaneseChars = true
+            }
+            
+            // Check if lines are stacked vertically with minimal horizontal overlap
+            if (block.lines.size > 1) {
+                val lines = block.lines
+                // Check if the average width of characters is close to their height
+                // (Japanese characters in vertical text are often square-ish)
+                val charWidth = block.boundingBox?.width()?.toFloat() ?: 0f
+                val charHeight = block.boundingBox?.height()?.toFloat() ?: 0f
+                val charRatio = if (charHeight > 0) charWidth / charHeight else 0f
+                
+                // Vertical text blocks tend to be taller than wide
+                if (charRatio < 0.7) {
+                    verticalCount++
+                } else {
+                    horizontalCount++
+                }
+            }
+        }
+        
+        // If no Japanese characters, not likely vertical Japanese
+        if (!hasJapaneseChars) return false
+        
+        // Decision based on various factors
+        return verticalCount > horizontalCount || 
+              (sortedBlocksX.size >= 2 && hasJapaneseChars)
+    }
+    
+    /**
+     * Process vertical Japanese text to reorder it correctly
+     * In vertical Japanese, text flows top to bottom, right to left
+     */
+    private fun processVerticalJapaneseText(text: Text): String {
+        // First, sort blocks from right to left (vertical Japanese columns)
+        val blocksRightToLeft = text.textBlocks.sortedByDescending { it.boundingBox?.centerX() ?: 0 }
+        
+        val stringBuilder = StringBuilder()
+        
+        // Process each block (column) from right to left
+        for (block in blocksRightToLeft) {
+            // For each block, process lines from top to bottom
+            val linesTopToBottom = block.lines.sortedBy { it.boundingBox?.centerY() ?: 0 }
+            
+            for (line in linesTopToBottom) {
+                stringBuilder.append(line.text)
+                // Don't add line break between lines in the same vertical column
+                // Just concatenate the characters in the proper order
+            }
+            // Add a line break between columns
+            stringBuilder.append("\n")
+        }
+        
+        val processedText = stringBuilder.toString().trim()
+        Log.d(TAG, "Processed vertical Japanese text: $processedText")
+        
+        return correctOcrErrors(processedText)
     }
     
     /**

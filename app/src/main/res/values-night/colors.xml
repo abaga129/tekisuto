@@ -13,4 +13,8 @@
     <!-- Word button background adjustments for night mode -->
     <color name="clickable_word_background">#404F7F98</color>
     <color name="clickable_word_border">#7A4F7F98</color>
+    
+    <!-- Exported word indicators for dark mode -->
+    <color name="card_exported">#1D2F44</color>  <!-- Darker blue background for exported cards -->
+    <color name="exported_hint">#4CAF50</color>  <!-- Same green checkmark color -->
 </resources>

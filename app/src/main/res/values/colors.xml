@@ -37,4 +37,8 @@
 
     <color name="clickable_word_background">#404F7F98</color>
     <color name="clickable_word_border">#7A4F7F98</color>
+    
+    <!-- Exported word indicators -->
+    <color name="card_exported">#F0F8FF</color>          <!-- Light blue background for exported cards -->
+    <color name="exported_hint">#4CAF50</color>          <!-- Green checkmark color -->
 </resources>

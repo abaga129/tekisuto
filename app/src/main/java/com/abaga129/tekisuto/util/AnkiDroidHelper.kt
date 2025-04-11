@@ -8,8 +8,11 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import com.abaga129.tekisuto.database.DictionaryRepository
 import com.ichi2.anki.api.AddContentApi
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 /**
  * Helper class for AnkiDroid integration
@@ -17,6 +20,7 @@ import java.io.ByteArrayOutputStream
 class AnkiDroidHelper(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(ANKI_PREFS, Context.MODE_PRIVATE)
     private val api = AddContentApi(context)
+    private val dictionaryRepository = DictionaryRepository.getInstance(context)
 
     companion object {
         private const val TAG = "AnkiDroidHelper"
@@ -30,6 +34,7 @@ class AnkiDroidHelper(private val context: Context) {
         const val PREF_FIELD_CONTEXT = "field_context"
         const val PREF_FIELD_PART_OF_SPEECH = "field_part_of_speech"
         const val PREF_FIELD_TRANSLATION = "field_translation"
+        const val PREF_FIELD_AUDIO = "field_audio"
         const val DEFAULT_FIELD_VALUE = "0"
     }
 
@@ -93,7 +98,8 @@ class AnkiDroidHelper(private val context: Context) {
         fieldScreenshot: Int,
         fieldContext: Int,
         fieldPartOfSpeech: Int,
-        fieldTranslation: Int
+        fieldTranslation: Int,
+        fieldAudio: Int = -1 // Default to -1 (not set)
     ) {
         prefs.edit().apply {
             putLong(PREF_DECK_ID, deckId)
@@ -105,6 +111,7 @@ class AnkiDroidHelper(private val context: Context) {
             putInt(PREF_FIELD_CONTEXT, fieldContext)
             putInt(PREF_FIELD_PART_OF_SPEECH, fieldPartOfSpeech)
             putInt(PREF_FIELD_TRANSLATION, fieldTranslation)
+            putInt(PREF_FIELD_AUDIO, fieldAudio)
             apply()
         }
     }
@@ -134,7 +141,8 @@ class AnkiDroidHelper(private val context: Context) {
             screenshot = prefs.getInt(PREF_FIELD_SCREENSHOT, 0),
             context = prefs.getInt(PREF_FIELD_CONTEXT, 0),
             partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0),
-            translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0)
+            translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0),
+            audio = prefs.getInt(PREF_FIELD_AUDIO, -1)
         )
     }
 
@@ -148,7 +156,8 @@ class AnkiDroidHelper(private val context: Context) {
         partOfSpeech: String,
         context: String,
         screenshotPath: String?,
-        translation: String = ""
+        translation: String = "",
+        audioPath: String? = null
     ): Boolean {
         if (!isAnkiDroidAvailable()) {
             Log.e(TAG, "AnkiDroid not available")
@@ -167,7 +176,7 @@ class AnkiDroidHelper(private val context: Context) {
         try {
             // Try using the API first
             return addNoteWithApi(
-                word, reading, definition, partOfSpeech, context, screenshotPath, translation,
+                word, reading, definition, partOfSpeech, context, screenshotPath, translation, audioPath,
                 deckId, modelId, fieldMappings
             )
         } catch (e: Exception) {
@@ -191,6 +200,7 @@ class AnkiDroidHelper(private val context: Context) {
         context: String,
         screenshotPath: String?,
         translation: String,
+        audioPath: String?,
         deckId: Long,
         modelId: Long,
         fieldMappings: FieldMappings
@@ -249,6 +259,14 @@ class AnkiDroidHelper(private val context: Context) {
                     fieldValues[fields[fieldMappings.screenshot]] = screenshot
                 }
             }
+            
+            // Audio field (optional)
+            if (fieldMappings.audio >= 0 && fieldMappings.audio < fields.size && audioPath != null) {
+                val audioTag = createAudioTag(audioPath)
+                if (audioTag.isNotBlank()) {
+                    fieldValues[fields[fieldMappings.audio]] = audioTag
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error mapping fields", e)
             return false
@@ -263,7 +281,27 @@ class AnkiDroidHelper(private val context: Context) {
             
             // Call the API with the correct parameter types
             val noteId = api.addNote(modelId, deckId, fieldsArray, setOf<String>())
-            noteId > 0
+            val success = noteId > 0
+            
+            // If successful, record the word as exported
+            if (success) {
+                // Run in a coroutine without blocking
+                GlobalScope.launch {
+                    try {
+                        dictionaryRepository.addExportedWord(
+                            word = word.trim().lowercase(),
+                            dictionaryId = 0, // 0 means "any dictionary"
+                            ankiDeckId = deckId,
+                            ankiNoteId = noteId
+                        )
+                        Log.d(TAG, "Marked word as exported: $word")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error marking word as exported", e)
+                    }
+                }
+            }
+            
+            success
         } catch (e: Exception) {
             Log.e(TAG, "Error adding note to AnkiDroid", e)
             throw e
@@ -391,6 +429,41 @@ class AnkiDroidHelper(private val context: Context) {
             ""
         }
     }
+    
+    /**
+     * Create an audio tag for AnkiDroid
+     * This creates a tag that AnkiDroid will recognize as playable audio
+     */
+    private fun createAudioTag(audioPath: String): String {
+        return try {
+            // Create a URI to the audio file
+            val audioFile = java.io.File(audioPath)
+            
+            if (audioFile.exists()) {
+                // For AnkiDroid, we need to copy the file to AnkiDroid's media directory
+                // and then create a [sound:filename] tag
+                val fileName = audioFile.name
+                
+                // Copy the file to AnkiDroid's media directory (the AnkiDroid API will handle this)
+                val mediaUri = Uri.fromFile(audioFile)
+                val mediaPath = api.addMediaFromUri(mediaUri, fileName, "audio/wav")
+                
+                if (mediaPath?.isNotEmpty() == true) {
+                    // Return the sound tag
+                    "[sound:$fileName]"
+                } else {
+                    Log.e(TAG, "Failed to add audio file to AnkiDroid media directory")
+                    ""
+                }
+            } else {
+                Log.e(TAG, "Audio file does not exist: $audioPath")
+                ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating audio tag", e)
+            ""
+        }
+    }
 
     /**
      * Launch AnkiDroid app
@@ -414,5 +487,6 @@ data class FieldMappings(
     val screenshot: Int = 0,
     val context: Int = 0,
     val partOfSpeech: Int = 0,
-    val translation: Int = 0
+    val translation: Int = 0,
+    val audio: Int = -1
 )

@@ -103,10 +103,11 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                 android.util.Log.d("DictionaryViewModel", "Search returned ${results.size} results")
                 
                 // Log a few entries for debugging
-                results.take(3).forEachIndexed { index, entry ->
+                results.take(5).forEachIndexed { index, entry ->
                     android.util.Log.d("DictionaryViewModel", "Result $index: term=${entry.term}, " +
                             "reading=${entry.reading}, pos=${entry.partOfSpeech}, " +
-                            "definition=${entry.definition.take(30)}...")
+                            "definition=${entry.definition.take(30)}..." +
+                            (if (entry.term.equals(query, ignoreCase = true)) " [EXACT MATCH]" else ""))
                 }
             } catch (e: Exception) {
                 android.util.Log.e("DictionaryViewModel", "Error searching dictionary", e)

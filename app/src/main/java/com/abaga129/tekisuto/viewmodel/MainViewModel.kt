@@ -50,13 +50,44 @@ class MainViewModel : ViewModel() {
 
     fun checkAccessibilityServiceStatus(context: Context, serviceClass: Class<*>) {
         val serviceClassName = serviceClass.name
-        val enabledServicesSetting = android.provider.Settings.Secure.getString(
-            context.contentResolver,
-            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )
-
-        val enabled = enabledServicesSetting?.contains(serviceClassName) == true
-        _isAccessibilityServiceEnabled.value = enabled
+        val packageName = context.packageName
+        val componentName = "$packageName/$serviceClassName"
+        
+        try {
+            // Get the enabled accessibility services string from settings
+            val enabledServicesStr = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            
+            Log.d(TAG, "Current enabled services: $enabledServicesStr")
+            Log.d(TAG, "Looking for service: $componentName")
+            
+            // The format in the settings string is "packagename/serviceclassname"
+            // We need to check if our service is in this list
+            val isEnabled = if (enabledServicesStr.isEmpty()) {
+                false
+            } else {
+                // Split the string into individual service components
+                val enabledServices = enabledServicesStr.split(":")
+                
+                // Check if our service is in the list
+                enabledServices.any { service ->
+                    service.equals(componentName, ignoreCase = true) ||
+                    service.contains(serviceClassName) ||
+                    (service.contains(packageName) && service.contains(".AccessibilityOcrService"))
+                }
+            }
+            
+            // Update the LiveData with our finding
+            _isAccessibilityServiceEnabled.value = isEnabled
+            
+            Log.d(TAG, "Accessibility service is ${if (isEnabled) "ENABLED" else "DISABLED"}")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking accessibility service status", e)
+            _isAccessibilityServiceEnabled.value = false
+        }
     }
 
     /**
@@ -107,6 +138,18 @@ class MainViewModel : ViewModel() {
             
             // Save the metadata and get the dictionary ID
             val dictionaryId = dictionaryRepository.saveDictionaryMetadata(dictionaryMetadata)
+            
+            // Store language information for TTS
+            try {
+                // Update metadata with the assigned ID
+                val savedMetadata = dictionaryMetadata.copy(id = dictionaryId)
+                val languageHelper = com.abaga129.tekisuto.util.DictionaryLanguageHelper(context)
+                languageHelper.storeDictionaryLanguages(savedMetadata)
+                Log.d(TAG, "Stored dictionary languages - Source: ${savedMetadata.sourceLanguage}, Target: ${savedMetadata.targetLanguage}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error storing dictionary languages", e)
+                // Continue even if storing languages fails
+            }
             
             if (dictionaryId <= 0) {
                 Log.e(TAG, "Failed to save dictionary metadata")

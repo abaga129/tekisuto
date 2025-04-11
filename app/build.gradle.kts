@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 28
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2-alpha"
+        versionCode = 4
+        versionName = "0.4-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -56,6 +56,18 @@ android {
         }
     }
     
+    // Configure the naming of output APK files
+    applicationVariants.all {
+        val variant = this
+        outputs.all {
+            // We need to cast to an implementation class to access the outputFileName property
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).apply {
+                val appName = "Tekisuto"
+                outputFileName = "${appName}-${variant.baseName}-v${variant.versionName}.apk"
+            }
+        }
+    }
+    
     // Add memory allocation configuration
     kapt {
         arguments {
@@ -67,6 +79,13 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Exclude conflicting META-INF files from Kuromoji and Jieba
+            excludes += "/META-INF/CONTRIBUTORS.md"
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/DEPENDENCIES"
         }
     }
     compileOptions {
@@ -111,6 +130,15 @@ dependencies {
     
     // Add multidex support
     implementation("androidx.multidex:multidex:2.0.1")
+    
+    // Japanese text tokenization
+    implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
+    
+    // Chinese text tokenization
+    implementation("com.huaban:jieba-analysis:1.0.2")
+    
+    // Azure AI Speech Service
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.32.1")
     
     kapt("androidx.room:room-compiler:$room_version")  // This is crucial for Room
     testImplementation(libs.junit)

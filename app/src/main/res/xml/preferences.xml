@@ -48,5 +48,35 @@
             app:iconSpaceReserved="false" />
             
     </PreferenceCategory>
+    
+    <PreferenceCategory
+        android:title="@string/audio_settings_title"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="enable_audio"
+            android:title="@string/enable_audio_title"
+            android:summary="@string/enable_audio_summary"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <EditTextPreference
+            android:key="azure_speech_key"
+            android:title="@string/azure_speech_key_title"
+            android:summary="@string/azure_speech_key_summary"
+            android:dependency="enable_audio"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="false" />
+        
+        <EditTextPreference
+            android:key="azure_speech_region"
+            android:title="@string/azure_speech_region_title"
+            android:summary="@string/azure_speech_region_summary"
+            android:defaultValue="eastus"
+            android:dependency="enable_audio"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+            
+    </PreferenceCategory>
 
 </PreferenceScreen>

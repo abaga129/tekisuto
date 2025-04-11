@@ -27,13 +27,26 @@ private const val TAG = "DictionaryRepository"
  * Dictionary repository to handle database operations
  */
 class DictionaryRepository(context: Context) {
+    
+    companion object {
+        @Volatile
+        private var INSTANCE: DictionaryRepository? = null
+        
+        fun getInstance(context: Context): DictionaryRepository {
+            return INSTANCE ?: synchronized(this) {
+                val instance = DictionaryRepository(context.applicationContext)
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
     private val database: AppDatabase = Room.databaseBuilder(
         context,
         AppDatabase::class.java,
         "tekisuto_dictionary${com.abaga129.tekisuto.BuildConfig.DB_NAME_SUFFIX}.db"
     )
-        // Add migration for adding isHtmlContent column
-        .addMigrations(MIGRATION_3_4)
+        // Add migrations
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
         .fallbackToDestructiveMigration() // Fallback if we added more migrations in the future
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING) // Improve performance with WAL
         .build()
@@ -65,6 +78,7 @@ class DictionaryRepository(context: Context) {
 
     private val dictionaryDao = database.dictionaryDao()
     private val dictionaryMetadataDao = database.dictionaryMetadataDao()
+    private val exportedWordsDao = database.exportedWordsDao()
 
     /**
      * Saves dictionary metadata and returns the ID
@@ -181,16 +195,19 @@ class DictionaryRepository(context: Context) {
     /**
      * Searches for entries matching the given query, ordered by dictionary priority
      * Use fastSearch=true for quick search without prioritization (better for interactive search)
+     * Results are prioritized with exact matches at the top
      */
     suspend fun searchDictionary(query: String, fastSearch: Boolean = false): List<DictionaryEntryEntity> {
         return try {
             val searchQuery = "%$query%"
+            val exactQuery = query.trim() // For exact match comparison
+            
             if (fastSearch) {
-                // Fast search without priority ordering
-                dictionaryDao.fastSearchEntries(searchQuery)
+                // Fast search without priority ordering but with exact match prioritization
+                dictionaryDao.fastSearchEntries(searchQuery, exactQuery)
             } else {
-                // Full search with priority ordering
-                dictionaryDao.searchEntriesOrderedByPriority(searchQuery)
+                // Full search with priority ordering and exact match prioritization
+                dictionaryDao.searchEntriesOrderedByPriority(searchQuery, exactQuery)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error searching dictionary", e)
@@ -275,6 +292,96 @@ class DictionaryRepository(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error getting recent entries", e)
             emptyList()
+        }
+    }
+    
+    /**
+     * Adds a word to the exported words table
+     */
+    suspend fun addExportedWord(word: String, dictionaryId: Long, ankiDeckId: Long, ankiNoteId: Long? = null) {
+        try {
+            val exportedWord = ExportedWordEntity(
+                word = word.trim().lowercase(),
+                dictionaryId = dictionaryId,
+                ankiDeckId = ankiDeckId,
+                ankiNoteId = ankiNoteId
+            )
+            exportedWordsDao.insert(exportedWord)
+            Log.d(TAG, "Added exported word: $word")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding exported word", e)
+            throw e
+        }
+    }
+    
+    /**
+     * Checks if a word has been exported to AnkiDroid
+     */
+    suspend fun isWordExported(word: String): Boolean {
+        return try {
+            exportedWordsDao.isWordExported(word.trim().lowercase())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking if word is exported", e)
+            false
+        }
+    }
+    
+    /**
+     * Gets all exported words
+     */
+    suspend fun getAllExportedWords(): List<ExportedWordEntity> {
+        return try {
+            exportedWordsDao.getAllExportedWords()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting all exported words", e)
+            emptyList()
+        }
+    }
+    
+    /**
+     * Gets the count of exported words
+     */
+    suspend fun getExportedWordCount(): Int {
+        return try {
+            exportedWordsDao.getExportedWordCount()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting exported word count", e)
+            0
+        }
+    }
+    
+    /**
+     * Imports a list of words as exported words (e.g., from Anki)
+     * 
+     * @param words List of words to import
+     * @param dictionaryId Dictionary ID (use 0 for "any dictionary")
+     * @param ankiDeckId Anki deck ID (use -1 for words imported from .apkg)
+     * @return Number of words imported
+     */
+    suspend fun importExportedWords(words: List<String>, dictionaryId: Long, ankiDeckId: Long): Int {
+        try {
+            if (words.isEmpty()) {
+                Log.w(TAG, "importExportedWords called with empty list")
+                return 0
+            }
+            
+            // Create ExportedWordEntity objects for each word
+            val exportedWords = words.map { word ->
+                ExportedWordEntity(
+                    word = word.trim().lowercase(),
+                    dictionaryId = dictionaryId,
+                    ankiDeckId = ankiDeckId
+                )
+            }
+            
+            // Insert into database
+            val result = exportedWordsDao.insertAll(exportedWords)
+            
+            Log.d(TAG, "Successfully imported ${exportedWords.size} exported words")
+            return exportedWords.size
+        } catch (e: Exception) {
+            Log.e(TAG, "Error importing exported words: ${e.message}", e)
+            throw e
         }
     }
 }
@@ -402,13 +509,29 @@ interface DictionaryDao {
     @Query("SELECT e.* FROM dictionary_entries e " +
            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
            "WHERE LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query) " +
-           "ORDER BY m.priority DESC, e.id DESC")
-    suspend fun searchEntriesOrderedByPriority(query: String): List<DictionaryEntryEntity>
+           "ORDER BY " +
+           "CASE " +
+           "  WHEN LOWER(e.term) = LOWER(:exactQuery) THEN 0 " + // Exact term match gets highest priority
+           "  WHEN LOWER(e.term) LIKE LOWER(:exactQuery) || '%' THEN 1 " + // Term starts with query
+           "  WHEN LOWER(e.reading) = LOWER(:exactQuery) THEN 2 " + // Exact reading match
+           "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
+           "  ELSE 4 " + // Everything else (matches in definition, etc.)
+           "END, " +
+           "m.priority DESC, e.id DESC")
+    suspend fun searchEntriesOrderedByPriority(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
 
     @Query("SELECT * FROM dictionary_entries " +
            "WHERE term LIKE :query OR reading LIKE :query " +  /* Using index without LOWER for better performance */
-           "ORDER BY id DESC LIMIT 50")
-    suspend fun fastSearchEntries(query: String): List<DictionaryEntryEntity>
+           "ORDER BY " +
+           "CASE " +
+           "  WHEN term = :exactQuery THEN 0 " + // Exact term match gets highest priority
+           "  WHEN term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
+           "  WHEN reading = :exactQuery THEN 2 " + // Exact reading match
+           "  WHEN reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
+           "  ELSE 4 " + // Everything else
+           "END, " +
+           "id DESC LIMIT 50")
+    suspend fun fastSearchEntries(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
     
     /* Bulk search for multiple terms at once */
     @Query("SELECT * FROM dictionary_entries WHERE term IN (:terms) LIMIT 100")
@@ -437,11 +560,51 @@ interface DictionaryDao {
 /**
  * Room database
  */
-@Database(entities = [DictionaryEntryEntity::class, DictionaryMetadataEntity::class], version = 4)
+/**
+ * Entity for tracking words that have been exported to AnkiDroid
+ */
+@Entity(tableName = "exported_words",
+        indices = [Index(value = ["word"], unique = false)])
+data class ExportedWordEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val word: String,                  // The word that was exported
+    val dictionaryId: Long,            // Which dictionary it came from
+    val ankiDeckId: Long,              // AnkiDroid deck ID
+    val ankiNoteId: Long? = null,      // AnkiDroid note ID if available
+    val dateAdded: Date = Date()       // When it was exported
+)
+
+/**
+ * DAO for exported words operations
+ */
+@Dao
+interface ExportedWordsDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(exportedWord: ExportedWordEntity): Long
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(exportedWords: List<ExportedWordEntity>): List<Long>
+    
+    @Query("SELECT EXISTS(SELECT 1 FROM exported_words WHERE LOWER(word) = LOWER(:word) LIMIT 1)")
+    suspend fun isWordExported(word: String): Boolean
+    
+    @Query("SELECT * FROM exported_words WHERE LOWER(word) = LOWER(:word) LIMIT 1")
+    suspend fun getExportedWordByWord(word: String): ExportedWordEntity?
+    
+    @Query("SELECT * FROM exported_words ORDER BY dateAdded DESC")
+    suspend fun getAllExportedWords(): List<ExportedWordEntity>
+    
+    @Query("SELECT COUNT(*) FROM exported_words")
+    suspend fun getExportedWordCount(): Int
+}
+
+@Database(entities = [DictionaryEntryEntity::class, DictionaryMetadataEntity::class, ExportedWordEntity::class], version = 5)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dictionaryDao(): DictionaryDao
     abstract fun dictionaryMetadataDao(): DictionaryMetadataDao
+    abstract fun exportedWordsDao(): ExportedWordsDao
 }
 
 /**
@@ -451,5 +614,27 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(database: SupportSQLiteDatabase) {
         // Add isHtmlContent column with default value false
         database.execSQL("ALTER TABLE dictionary_entries ADD COLUMN isHtmlContent INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
+ * Migration from version 4 to 5 - adds exported_words table
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Create exported_words table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS exported_words (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                word TEXT NOT NULL,
+                dictionaryId INTEGER NOT NULL,
+                ankiDeckId INTEGER NOT NULL,
+                ankiNoteId INTEGER,
+                dateAdded INTEGER NOT NULL
+            )
+        """)
+        
+        // Create index on word column
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_exported_words_word ON exported_words (word)")
     }
 }

@@ -34,8 +34,10 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
     private lateinit var contextFieldSpinner: Spinner
     private lateinit var partOfSpeechFieldSpinner: Spinner
     private lateinit var translationFieldSpinner: Spinner
+    private lateinit var audioFieldSpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var testButton: Button
+    private lateinit var importAnkiPackageButton: Button
     
     // Data
     private var decks: Map<Long, String> = emptyMap()
@@ -79,8 +81,10 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         contextFieldSpinner = findViewById(R.id.context_field_spinner)
         partOfSpeechFieldSpinner = findViewById(R.id.part_of_speech_field_spinner)
         translationFieldSpinner = findViewById(R.id.translation_field_spinner)
+        audioFieldSpinner = findViewById(R.id.audio_field_spinner)
         saveButton = findViewById(R.id.save_config_button)
         testButton = findViewById(R.id.test_anki_button)
+        importAnkiPackageButton = findViewById(R.id.import_anki_package_button)
         
         // Set up spinners
         setupDeckSpinner()
@@ -94,6 +98,11 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         // Set up test button
         testButton.setOnClickListener {
             testAnkiDroidExport()
+        }
+        
+        // Set up import button
+        importAnkiPackageButton.setOnClickListener {
+            launchAnkiPackageImport()
         }
     }
     
@@ -126,6 +135,12 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         translationFieldSpinner.isEnabled = false
         saveButton.isEnabled = false
         testButton.isEnabled = false
+        // We still allow importing from .apkg files even if AnkiDroid is not installed
+    }
+    
+    private fun launchAnkiPackageImport() {
+        val intent = Intent(this, AnkiPackageImportActivity::class.java)
+        startActivity(intent)
     }
     
     private fun loadSavedConfiguration() {
@@ -270,6 +285,9 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
                     if (fieldMappings.translation < fields.size) {
                         translationFieldSpinner.setSelection(fieldMappings.translation + 1)
                     }
+                    if (fieldMappings.audio >= 0 && fieldMappings.audio < fields.size) {
+                        audioFieldSpinner.setSelection(fieldMappings.audio + 1)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -299,6 +317,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         contextFieldSpinner.adapter = adapter
         partOfSpeechFieldSpinner.adapter = adapter
         translationFieldSpinner.adapter = adapter
+        audioFieldSpinner.adapter = adapter
     }
     
     private fun saveConfiguration() {
@@ -320,6 +339,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         val contextField = contextFieldSpinner.selectedItemPosition - 1
         val partOfSpeechField = partOfSpeechFieldSpinner.selectedItemPosition - 1
         val translationField = translationFieldSpinner.selectedItemPosition - 1
+        val audioField = audioFieldSpinner.selectedItemPosition - 1
         
         // Validate that at least word and definition fields are selected
         if (wordField < 0) {
@@ -342,7 +362,8 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
             screenshotField,
             contextField,
             partOfSpeechField,
-            translationField
+            translationField,
+            audioField
         )
         
         Toast.makeText(this, getString(R.string.config_saved), Toast.LENGTH_SHORT).show()
@@ -365,7 +386,8 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
                         "Test",
                         "This is a test export from Tekisuto app.",
                         null,
-                        "Test (Translation)"
+                        "Test (Translation)",
+                        null  // audio path is null for test
                     )
                 }
                 

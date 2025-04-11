@@ -114,17 +114,34 @@ class WordTokenizerFlow {
          * @return List of words
          */
         private fun findWords(text: String): List<String> {
-            val words = mutableListOf<String>()
-            val regex = Regex("[^\\s,.。、!?:;\\n\\r\\t]+")
-            
-            // Find all word matches
-            val matches = regex.findAll(text)
-            
-            for (match in matches) {
-                words.add(match.value)
+            // Check if the text is likely Japanese
+            if (JapaneseTokenizer.isLikelyJapanese(text)) {
+                android.util.Log.d(TAG, "Detected Japanese text, using Japanese tokenizer")
+                
+                // Use Japanese tokenizer which returns meaningful words
+                return JapaneseTokenizer.tokenize(text)
             }
-            
-            return words
+            // Check if the text is likely Chinese
+            else if (ChineseTokenizer.isLikelyChinese(text)) {
+                android.util.Log.d(TAG, "Detected Chinese text, using Chinese tokenizer")
+                
+                // Use Chinese tokenizer which returns meaningful words
+                return ChineseTokenizer.tokenize(text)
+            } 
+            else {
+                // Standard tokenization for other languages
+                val words = mutableListOf<String>()
+                val regex = Regex("[^\\s,.。、!?:;\\n\\r\\t]+")
+                
+                // Find all word matches
+                val matches = regex.findAll(text)
+                
+                for (match in matches) {
+                    words.add(match.value)
+                }
+                
+                return words
+            }
         }
     }
 }

@@ -113,7 +113,35 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // Check if accessibility service is enabled
-//        viewModel.checkAccessibilityServiceStatus(this, AccessibilityOcrService::class.java)
+        viewModel.checkAccessibilityServiceStatus(this, AccessibilityOcrService::class.java)
+        
+        // Also start a periodic check to update the status continuously
+        startPeriodicServiceCheck()
+    }
+    
+    private val serviceCheckHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val serviceCheckRunnable = object : Runnable {
+        override fun run() {
+            // Check the service status
+            viewModel.checkAccessibilityServiceStatus(this@MainActivity, AccessibilityOcrService::class.java)
+            
+            // Schedule the next check
+            serviceCheckHandler.postDelayed(this, 2000) // Check every 2 seconds
+        }
+    }
+    
+    private fun startPeriodicServiceCheck() {
+        // Remove any existing callbacks to avoid duplicates
+        serviceCheckHandler.removeCallbacks(serviceCheckRunnable)
+        
+        // Start the periodic check
+        serviceCheckHandler.post(serviceCheckRunnable)
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Stop the periodic check when activity is paused
+        serviceCheckHandler.removeCallbacks(serviceCheckRunnable)
     }
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -138,6 +166,14 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.service_disabled)
         }
+        
+        // Update text color based on status
+        val colorRes = if (isEnabled) {
+            android.R.color.holo_green_dark
+        } else {
+            android.R.color.holo_red_dark
+        }
+        statusTextView.setTextColor(resources.getColor(colorRes, theme))
     }
 
     private fun openAccessibilitySettings() {

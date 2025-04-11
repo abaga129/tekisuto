@@ -1,5 +1,6 @@
 package com.abaga129.tekisuto.ui.adapter
 
+import android.content.Context
 import android.content.Intent
 import android.text.Html
 import android.text.Spanned
@@ -14,10 +15,14 @@ import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import android.content.res.ColorStateList
+import androidx.core.content.ContextCompat
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
+import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
+import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,9 +36,16 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
     private var ocrText: String? = null
     private var screenshotPath: String? = null
     private var ankiExportListener: OnAnkiExportListener? = null
+    private var audioListener: OnAudioPlayListener? = null
+    private var speechService: SpeechService? = null
+    private var dictionaryRepository: DictionaryRepository? = null
 
     interface OnAnkiExportListener {
         fun onExportToAnki(entry: DictionaryEntryEntity)
+    }
+    
+    interface OnAudioPlayListener {
+        fun onPlayAudio(term: String, language: String)
     }
 
     fun setLifecycleScope(scope: LifecycleCoroutineScope) {
@@ -51,6 +63,18 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
     fun setOnAnkiExportListener(listener: OnAnkiExportListener) {
         this.ankiExportListener = listener
     }
+    
+    fun setOnAudioPlayListener(listener: OnAudioPlayListener) {
+        this.audioListener = listener
+    }
+    
+    fun setSpeechService(service: SpeechService) {
+        this.speechService = service
+    }
+    
+    fun setDictionaryRepository(repository: DictionaryRepository) {
+        this.dictionaryRepository = repository
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -60,7 +84,16 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val entry = getItem(position)
-        holder.bind(entry, ankiExportListener)
+        holder.bind(entry, ankiExportListener, audioListener, speechService, dictionaryRepository, lifecycleScope)
+    }
+    
+    /**
+     * Force refresh of exported word status when notifyDataSetChanged is called
+     */
+    override fun onViewRecycled(holder: ViewHolder) {
+        super.onViewRecycled(holder)
+        // Clear any previous state to ensure fresh checking of exported status
+        holder.resetExportedState()
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -69,8 +102,17 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val partOfSpeechTextView: TextView = itemView.findViewById(R.id.part_of_speech_text)
         private val definitionTextView: TextView = itemView.findViewById(R.id.definition_text)
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
+        private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
+        private val cardView: androidx.cardview.widget.CardView = itemView.findViewById(R.id.dictionary_item_card)
 
-        fun bind(entry: DictionaryEntryEntity, ankiExportListener: OnAnkiExportListener?) {
+        fun bind(
+            entry: DictionaryEntryEntity, 
+            ankiExportListener: OnAnkiExportListener?,
+            audioListener: OnAudioPlayListener?,
+            speechService: SpeechService?,
+            dictionaryRepository: DictionaryRepository?,
+            lifecycleScope: LifecycleCoroutineScope?
+        ) {
             // Log entry details for debugging
             Log.d("DictionaryAdapter", "Processing entry: ${entry.term}, isHtml=${entry.isHtmlContent}")
             
@@ -155,15 +197,167 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 definitionTextView.visibility = View.VISIBLE
             }
             
+            // Check if the word is already in AnkiDroid
+            if (dictionaryRepository != null && lifecycleScope != null) {
+                lifecycleScope.launch {
+                    val isExported = dictionaryRepository.isWordExported(entry.term)
+                    
+                    // Update the UI based on export status
+                    withContext(Dispatchers.Main) {
+                        if (isExported) {
+                            // Change card background to indicate it's already exported
+                            cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.card_exported))
+                            
+                            // Add a hint to the export button
+                            exportToAnkiButton.setImageTintList(ColorStateList.valueOf(
+                                ContextCompat.getColor(itemView.context, R.color.exported_hint)))
+                            
+                            // Add a small text indicator to term text
+                            termTextView.text = "${entry.term} ✓"
+                        } else {
+                            // Reset to normal colors
+                            cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.card_background))
+                            exportToAnkiButton.setImageTintList(null)
+                            termTextView.text = entry.term
+                        }
+                    }
+                }
+            }
+            
             // Set up export to Anki button
             exportToAnkiButton.setOnClickListener {
                 ankiExportListener?.onExportToAnki(entry)
+            }
+            
+            // Set up play audio button
+            val sharedPrefs = itemView.context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+            val audioEnabled = sharedPrefs.getBoolean("enable_audio", true)
+            
+            if (audioEnabled && entry.term.isNotBlank()) {
+                playAudioButton.visibility = View.VISIBLE
+                playAudioButton.setOnClickListener {
+                    // Determine language from the dictionary entry or default to Japanese if unknown
+                    val language = guessLanguageFromEntry(entry)
+                    
+                    // Show "generating" toast and log the action
+                    Toast.makeText(
+                        itemView.context, 
+                        R.string.generating_audio, 
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    
+                    // Add debug logging
+                    Log.e("DictionaryMatchAdapter", "🔊 Play button clicked for term: '${entry.term}', language: $language")
+                    
+                    // Generate and play audio through listener
+                    audioListener?.onPlayAudio(entry.term, language)
+                }
+            } else {
+                playAudioButton.visibility = View.GONE
             }
 
             // Log the entry for debugging
             android.util.Log.d("DictionaryAdapter", "Entry: [term=${entry.term}, reading=${entry.reading}, " +
                     "partOfSpeech=${entry.partOfSpeech}, definition=${entry.definition.take(30)}...]")
         }
+        
+        /**
+         * Determine the language of the dictionary entry for audio generation
+         * 
+         * 1. First check if we have dictionary metadata with sourceLanguage
+         * 2. If not, try to detect based on characters in the term/reading
+         * 3. Lastly, use a Latin character analysis to distinguish European languages
+         */
+        /**
+         * Reset the card to default state (used when recycling views)
+         */
+        fun resetExportedState() {
+            // Reset to normal colors
+            cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.card_background))
+            exportToAnkiButton.setImageTintList(null)
+            // Note: We don't reset the termTextView text here as it will be set during bind()
+        }
+        
+        /**
+         * Determine the language of the dictionary entry for audio generation
+         * 
+         * 1. First check if we have dictionary metadata with sourceLanguage
+         * 2. If not, try to detect based on characters in the term/reading
+         * 3. Lastly, use a Latin character analysis to distinguish European languages
+         */
+        private fun guessLanguageFromEntry(entry: DictionaryEntryEntity): String {
+            // Log detailed information for debugging
+            Log.e("DictionaryAdapter", "Determining language for term: '${entry.term}', dictionaryId: ${entry.dictionaryId}")
+            
+            // Use DictionaryLanguageHelper to get the language
+            val languageHelper = com.abaga129.tekisuto.util.DictionaryLanguageHelper(itemView.context)
+            val sourceLanguage = languageHelper.getSourceLanguage(entry.dictionaryId)
+            
+            if (sourceLanguage != null) {
+                Log.e("DictionaryAdapter", "Using stored source language for dictionary ${entry.dictionaryId}: $sourceLanguage")
+                return sourceLanguage // Already mapped to Azure format by the helper
+            }
+            
+            // Try to determine language from text patterns
+            val text = entry.term + " " + entry.reading
+            
+            // Check for CJK languages first
+            if (text.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
+                // Japanese (Hiragana, Katakana, Kanji)
+                return "ja"
+            }
+            
+            if (text.matches(Regex(".*[\u4E00-\u9FFF]+.*")) && 
+                !text.contains("[\u3040-\u309F\u30A0-\u30FF]")) {
+                // Chinese (Han characters without Japanese kana)
+                return "zh"
+            }
+            
+            if (text.matches(Regex(".*[\uAC00-\uD7A3]+.*"))) {
+                // Korean (Hangul)
+                return "ko"
+            }
+            
+            // For Latin-script languages, look for distinctive patterns
+            return when {
+                // Spanish - check for distinctive Spanish characters
+                text.contains("á") || text.contains("é") || 
+                text.contains("í") || text.contains("ó") || 
+                text.contains("ú") || text.contains("ü") || 
+                text.contains("ñ") || text.contains("¿") || 
+                text.contains("¡") || entry.term.endsWith("ción") || 
+                entry.term.endsWith("dad") -> "es"
+                
+                // French - check for distinctive French patterns
+                text.contains("à") || text.contains("â") || 
+                text.contains("ç") || text.contains("é") || 
+                text.contains("è") || text.contains("ê") || 
+                text.contains("ë") || text.contains("î") || 
+                text.contains("ï") || text.contains("ô") || 
+                text.contains("ù") || text.contains("û") || 
+                text.contains("ü") || entry.term.endsWith("eau") -> "fr"
+                
+                // German - check for distinctive German characters/patterns
+                text.contains("ä") || text.contains("ö") || 
+                text.contains("ü") || text.contains("ß") ||
+                entry.term.endsWith("ung") || entry.term.endsWith("heit") -> "de"
+                
+                // Italian - check for distinctive Italian patterns
+                text.contains("à") || text.contains("è") || 
+                text.contains("é") || text.contains("ì") || 
+                text.contains("í") || text.contains("ò") || 
+                text.contains("ó") || text.contains("ù") ||
+                entry.term.endsWith("zione") || entry.term.endsWith("ità") -> "it"
+                
+                // Russian - check for Cyrillic
+                text.contains(Regex(".*[А-Яа-я]+.*").pattern) -> "ru"
+                
+                // Default to English for other Latin scripts
+                else -> "en"
+            }
+        }
+        
+        // Language mapping now handled by DictionaryLanguageHelper
     }
 
     private class DiffCallback : DiffUtil.ItemCallback<DictionaryEntryEntity>() {

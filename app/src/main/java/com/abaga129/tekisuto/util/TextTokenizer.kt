@@ -85,13 +85,63 @@ class TextTokenizer {
          */
         private fun findWords(text: String): List<WordInfo> {
             val words = mutableListOf<WordInfo>()
-            val regex = Regex("[^\\s,.。、!?:;\\n\\r\\t]+")
             
-            // Find all word matches
-            val matches = regex.findAll(text)
-            
-            for (match in matches) {
-                words.add(WordInfo(match.range.first, match.range.last + 1))
+            // Check if the text is likely Japanese
+            if (JapaneseTokenizer.isLikelyJapanese(text)) {
+                Log.d(TAG, "Detected Japanese text, using Japanese tokenizer")
+                
+                // Use Japanese tokenizer
+                val japaneseWords = JapaneseTokenizer.tokenize(text)
+                
+                // For each word, find its position in the original text
+                for (word in japaneseWords) {
+                    // Find all occurrences of the word in the text
+                    var startIndex = 0
+                    while (startIndex != -1) {
+                        startIndex = text.indexOf(word, startIndex)
+                        if (startIndex != -1) {
+                            words.add(WordInfo(startIndex, startIndex + word.length))
+                            startIndex += word.length
+                        }
+                    }
+                }
+                
+                // Sort by start position to maintain order
+                words.sortBy { it.startIndex }
+            } 
+            // Check if the text is likely Chinese
+            else if (ChineseTokenizer.isLikelyChinese(text)) {
+                Log.d(TAG, "Detected Chinese text, using Chinese tokenizer")
+                
+                // Use Chinese tokenizer
+                val chineseWords = ChineseTokenizer.tokenize(text)
+                
+                // For each word, find its position in the original text
+                for (word in chineseWords) {
+                    // Find all occurrences of the word in the text
+                    var startIndex = 0
+                    while (startIndex != -1) {
+                        startIndex = text.indexOf(word, startIndex)
+                        if (startIndex != -1) {
+                            words.add(WordInfo(startIndex, startIndex + word.length))
+                            startIndex += word.length
+                        }
+                    }
+                }
+                
+                // Sort by start position to maintain order
+                words.sortBy { it.startIndex }
+            } 
+            else {
+                // Standard tokenization for other languages
+                val regex = Regex("[^\\s,.。、!?:;\\n\\r\\t]+")
+                
+                // Find all word matches
+                val matches = regex.findAll(text)
+                
+                for (match in matches) {
+                    words.add(WordInfo(match.range.first, match.range.last + 1))
+                }
             }
             
             return words
