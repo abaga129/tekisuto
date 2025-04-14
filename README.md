@@ -8,9 +8,12 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for langu
 
 - **OCR Text Extraction**: Capture text from any app using the accessibility service
 - **Dictionary Lookup**: Support for Yomitan/Yomichan format dictionaries
+- **Smart Search Results**: Exact matches are prioritized at the top of search results
+- **Visual Dictionary Management**: Dictionary entries show which words have been exported to Anki
 - **Text Area Selection**: Precisely crop the area containing text you want to scan
 - **Multi-language Support**: Works with Latin, Chinese, Japanese, Korean, Devanagari and other scripts
 - **AnkiDroid Integration**: Export dictionary matches directly to AnkiDroid as flashcards
+- **Anki Deck Import**: Import words from Anki packages (.apkg files) to track already studied vocabulary
 - **Privacy-focused**: All processing happens on-device with no cloud services required
 
 ## How It Works
