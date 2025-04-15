@@ -29,10 +29,12 @@ class ImageCropActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_crop)
 
+        Log.d(TAG, "ImageCropActivity onCreate called")
         ocrHelper = OcrHelper(this)
 
         // Get the screenshot path from the intent
         screenshotPath = intent.getStringExtra("SCREENSHOT_PATH")
+        Log.d(TAG, "Screenshot path from intent: $screenshotPath")
         
         if (screenshotPath.isNullOrEmpty()) {
             Log.e(TAG, "No screenshot path provided")
@@ -41,14 +43,31 @@ class ImageCropActivity : AppCompatActivity() {
             return
         }
 
+        // Verify file exists
+        val file = File(screenshotPath!!)
+        if (!file.exists()) {
+            Log.e(TAG, "Screenshot file does not exist at path: $screenshotPath")
+            Toast.makeText(this, "Error: Cannot find screenshot file", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        
+        // File exists, log the size
+        Log.d(TAG, "Screenshot file exists, size: ${file.length()} bytes")
+
         // Start the cropping activity
         startCrop()
     }
 
     private fun startCrop() {
         try {
-            val sourceUri = Uri.fromFile(File(screenshotPath!!))
+            Log.d(TAG, "Starting crop process")
+            val sourceFile = File(screenshotPath!!)
+            val sourceUri = Uri.fromFile(sourceFile)
             val destinationUri = Uri.fromFile(File(cacheDir, "cropped_" + System.currentTimeMillis() + ".jpg"))
+
+            Log.d(TAG, "Source URI: $sourceUri")
+            Log.d(TAG, "Destination URI: $destinationUri")
 
             // Configure UCrop options
             val options = UCrop.Options().apply {
@@ -59,16 +78,42 @@ class ImageCropActivity : AppCompatActivity() {
                 setToolbarColor(resources.getColor(R.color.purple_500, theme))
                 setToolbarTitle(getString(R.string.crop_image))
             }
-
+            
+            try {
+                // Verify the image can be loaded before passing to UCrop
+                val testBitmap = BitmapFactory.decodeFile(sourceFile.absolutePath)
+                if (testBitmap == null) {
+                    Log.e(TAG, "Could not decode bitmap from file")
+                    throw IllegalStateException("Could not decode bitmap from file")
+                }
+                Log.d(TAG, "Successfully verified bitmap can be loaded from file")
+                testBitmap.recycle() // Free the memory
+            } catch (e: Exception) {
+                Log.e(TAG, "Error verifying bitmap: ${e.message}")
+                throw e // Rethrow to be caught by outer catch block
+            }
+            
+            Log.d(TAG, "Starting UCrop activity")
             // Start UCrop activity
             UCrop.of(sourceUri, destinationUri)
                 .withOptions(options)
                 .start(this)
+            Log.d(TAG, "UCrop.start() called")
 
         } catch (e: Exception) {
             Log.e(TAG, "Error starting crop: ${e.message}")
-            Toast.makeText(this, "Error: Could not crop image", Toast.LENGTH_SHORT).show()
-            finish()
+            e.printStackTrace()
+            Toast.makeText(this, "Error: Could not crop image: ${e.message}", Toast.LENGTH_LONG).show()
+            
+            // As a fallback, try to process the original image without cropping
+            try {
+                Log.d(TAG, "Attempting to process original image without cropping")
+                processOriginalImage()
+            } catch (fallbackError: Exception) {
+                Log.e(TAG, "Fallback also failed: ${fallbackError.message}")
+                fallbackError.printStackTrace()
+                finish()
+            }
         }
     }
 

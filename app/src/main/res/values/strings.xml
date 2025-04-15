@@ -87,6 +87,9 @@
     <string name="dictionary_cleared">Dictionary cleared successfully</string>
     <string name="error_clearing_dictionary">Error clearing dictionary: %1$s</string>
     
+    <!-- Dictionary Entry Display -->
+    <string name="frequency_info">Frequency: #%1$d</string>
+    
     <!-- AnkiDroid Integration -->
     <string name="anki_config_title">AnkiDroid Integration Setup</string>
     <string name="anki_status">AnkiDroid Status:</string>

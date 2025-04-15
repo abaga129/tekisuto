@@ -46,7 +46,7 @@ class DictionaryRepository(context: Context) {
         "tekisuto_dictionary${com.abaga129.tekisuto.BuildConfig.DB_NAME_SUFFIX}.db"
     )
         // Add migrations
-        .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .fallbackToDestructiveMigration() // Fallback if we added more migrations in the future
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING) // Improve performance with WAL
         .build()
@@ -431,7 +431,8 @@ data class DictionaryEntryEntity(
     val definition: String,
     val partOfSpeech: String,
     val tags: List<String> = emptyList(),
-    val isHtmlContent: Boolean = false // Flag to indicate if definition contains HTML content
+    val isHtmlContent: Boolean = false, // Flag to indicate if definition contains HTML content
+    val frequency: Int? = null // Frequency information for the term, null if not available
 )
 
 /**
@@ -517,6 +518,8 @@ interface DictionaryDao {
            "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
            "  ELSE 4 " + // Everything else (matches in definition, etc.)
            "END, " +
+           "CASE WHEN e.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+           "CASE WHEN e.frequency IS NOT NULL THEN e.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first, with high default for null values)
            "m.priority DESC, e.id DESC")
     suspend fun searchEntriesOrderedByPriority(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
 
@@ -530,6 +533,8 @@ interface DictionaryDao {
            "  WHEN reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
            "  ELSE 4 " + // Everything else
            "END, " +
+           "CASE WHEN frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+           "CASE WHEN frequency IS NOT NULL THEN frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
            "id DESC LIMIT 50")
     suspend fun fastSearchEntries(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
     
@@ -599,7 +604,7 @@ interface ExportedWordsDao {
     suspend fun getExportedWordCount(): Int
 }
 
-@Database(entities = [DictionaryEntryEntity::class, DictionaryMetadataEntity::class, ExportedWordEntity::class], version = 5)
+@Database(entities = [DictionaryEntryEntity::class, DictionaryMetadataEntity::class, ExportedWordEntity::class], version = 6)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dictionaryDao(): DictionaryDao
@@ -636,5 +641,15 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         
         // Create index on word column
         database.execSQL("CREATE INDEX IF NOT EXISTS index_exported_words_word ON exported_words (word)")
+    }
+}
+
+/**
+ * Migration from version 5 to 6 - adds frequency column to dictionary_entries table
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Add frequency column to dictionary_entries table (nullable INTEGER)
+        database.execSQL("ALTER TABLE dictionary_entries ADD COLUMN frequency INTEGER")
     }
 }

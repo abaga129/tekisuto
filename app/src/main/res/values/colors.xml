@@ -41,4 +41,7 @@
     <!-- Exported word indicators -->
     <color name="card_exported">#F0F8FF</color>          <!-- Light blue background for exported cards -->
     <color name="exported_hint">#4CAF50</color>          <!-- Green checkmark color -->
+    
+    <!-- Frequency indicator -->
+    <color name="frequency_color">#FF9800</color>         <!-- Orange for frequency data -->
 </resources>

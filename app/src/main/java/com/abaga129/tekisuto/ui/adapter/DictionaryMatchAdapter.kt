@@ -100,6 +100,7 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val termTextView: TextView = itemView.findViewById(R.id.term_text)
         private val readingTextView: TextView = itemView.findViewById(R.id.reading_text)
         private val partOfSpeechTextView: TextView = itemView.findViewById(R.id.part_of_speech_text)
+        // Removed declaration of frequencyTextView as a property - we'll access it directly when needed
         private val definitionTextView: TextView = itemView.findViewById(R.id.definition_text)
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
         private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
@@ -138,6 +139,33 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 partOfSpeechTextView.visibility = View.VISIBLE
             } else {
                 partOfSpeechTextView.visibility = View.GONE
+            }
+            
+            // Safely handle frequency TextView which might be null in some layouts
+            try {
+                val freqTextView = itemView.findViewById<TextView>(R.id.frequency_text)
+                if (freqTextView != null) {
+                    // Display frequency data if available
+                    if (entry.frequency != null) {
+                        // Format frequency to show rank (lower number = more frequent/common)
+                        freqTextView.text = itemView.context.getString(R.string.frequency_info, entry.frequency)
+                        freqTextView.visibility = View.VISIBLE
+                        
+                        // Adjust color based on frequency - more common words get brighter colors
+                        val frequencyRank = entry.frequency
+                        val color = when {
+                            frequencyRank <= 100 -> ContextCompat.getColor(itemView.context, R.color.accent) // Very common (top 100)
+                            frequencyRank <= 1000 -> ContextCompat.getColor(itemView.context, R.color.frequency_color) // Common (top 1000)
+                            else -> ContextCompat.getColor(itemView.context, R.color.part_of_speech_color) // Less common
+                        }
+                        freqTextView.setBackgroundColor(color)
+                    } else {
+                        freqTextView.visibility = View.GONE
+                    }
+                }
+            } catch (e: Exception) {
+                // Log error but don't crash if frequency view is missing
+                Log.e("DictionaryAdapter", "Error setting frequency text", e)
             }
             
             // Display definition or show placeholder if empty

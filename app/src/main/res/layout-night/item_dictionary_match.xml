@@ -77,6 +77,25 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/term_text"
             tools:text="verb" />
+            
+        <TextView
+            android:id="@+id/frequency_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="@android:color/white"
+            android:background="@color/frequency_color"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@+id/part_of_speech_text"
+            app:layout_constraintTop_toBottomOf="@+id/term_text"
+            tools:text="Freq: #123" 
+            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/definition_text"

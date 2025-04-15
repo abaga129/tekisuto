@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.abaga129.tekisuto"
-        minSdk = 28
+        minSdk = 30 // Updated to API 30 (Android 11) for screenshot functionality
         targetSdk = 35
         versionCode = 4
         versionName = "0.4-alpha"

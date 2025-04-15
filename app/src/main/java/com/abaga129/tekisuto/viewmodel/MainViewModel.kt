@@ -174,6 +174,33 @@ class MainViewModel : ViewModel() {
                 }
             }
             
+            // Look for term_meta_bank files which may contain frequency data
+            val frequencyData = mutableMapOf<String, Int>()
+            var metaBankIndex = 1
+            while (true) {
+                val metaBankFile = File(extractedDir, "term_meta_bank_${metaBankIndex}.json")
+                if (metaBankFile.exists()) {
+                    try {
+                        Log.d(TAG, "Found meta bank file: ${metaBankFile.name}")
+                        loadFrequencyData(metaBankFile, frequencyData)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error loading frequency data from ${metaBankFile.name}: ${e.message}")
+                    }
+                    metaBankIndex++
+                } else {
+                    break
+                }
+            }
+            
+            // Log frequency data stats
+            Log.d(TAG, "Loaded ${frequencyData.size} frequency entries")
+            if (frequencyData.isNotEmpty()) {
+                // Log a few samples for debugging
+                frequencyData.entries.take(5).forEach { (term, freq) ->
+                    Log.d(TAG, "Frequency sample: '$term' = $freq")
+                }
+            }
+            
             // If no term_bank files, look for any JSON files that might contain dictionary data
             if (dictionaryFiles.isEmpty()) {
                 extractedDir.listFiles()?.forEach { file ->
@@ -343,7 +370,7 @@ class MainViewModel : ViewModel() {
                     entryCount = 0
                     
                     // Process file and count entries
-                    val entriesInThisFile = processTermBankFile(file, dictionaryId)
+                    val entriesInThisFile = processTermBankFile(file, dictionaryId, frequencyData)
                     totalEntriesProcessed += entriesInThisFile
                     
                     // Update progress
@@ -405,9 +432,10 @@ class MainViewModel : ViewModel() {
      * Process a term bank file using streaming to avoid OOM errors
      * @param termBankFile The file to process
      * @param dictionaryId The ID of the dictionary this file belongs to
+     * @param frequencyData Optional map of term to frequency data
      * @return The number of entries processed
      */
-    private suspend fun processTermBankFile(termBankFile: File, dictionaryId: Long): Int {
+    private suspend fun processTermBankFile(termBankFile: File, dictionaryId: Long, frequencyData: Map<String, Int> = emptyMap()): Int {
         var entriesProcessed = 0
         var fileStream: FileInputStream? = null
         var bufferedReader: BufferedReader? = null
@@ -478,7 +506,7 @@ class MainViewModel : ViewModel() {
                     for (i in 0 until topArray.length()) {
                         try {
                             val entryArray = topArray.getJSONArray(i)
-                            val parsedEntry = parseTermBankEntry(entryArray, dictionaryId)
+                            val parsedEntry = parseTermBankEntry(entryArray, dictionaryId, frequencyData)
                             
                             if (parsedEntry != null) {
                                 entries.add(parsedEntry)
@@ -522,17 +550,17 @@ class MainViewModel : ViewModel() {
                 isArrayFormat -> {
                     // Array format (includes both standard and array-in-array format)
                     Log.d(TAG, "Processing array-based dictionary format")
-                    processArrayFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
+                    processArrayFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId, frequencyData)
                 }
                 isObjectFormat || containsTermField -> {
                     // Object-based format with explicit term/reading/definition fields
                     Log.d(TAG, "Processing object-based dictionary format")
-                    processObjectFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
+                    processObjectFormatDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId, frequencyData)
                 }
                 else -> {
                     // Simple text format (term:reading:definition)
                     Log.d(TAG, "Processing simple text dictionary format")
-                    processSimpleTextDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId)
+                    processSimpleTextDictionary(bufferedReader, fileSize, entries, entriesProcessed, dictionaryId, frequencyData)
                 }
             }
             
@@ -570,7 +598,8 @@ class MainViewModel : ViewModel() {
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
         entriesProcessed: Int,
-        dictionaryId: Long
+        dictionaryId: Long,
+        frequencyData: Map<String, Int> = emptyMap()
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -596,7 +625,7 @@ class MainViewModel : ViewModel() {
                 if (containsMultipleArrays && containsNumericPosition && !hasTopLevelArray) {
                     Log.d(TAG, "Content suggests this is a top-level array format despite initial detection. Forcing array processing.")
                     bufferedReader.reset()
-                    processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId)
+                    processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId, frequencyData)
                     return processedCount
                 }
                 
@@ -615,7 +644,7 @@ class MainViewModel : ViewModel() {
                 // Process the file as one giant line with array of arrays
                 Log.d(TAG, "Processing array-in-array format dictionary")
                 // We need a fresh reader since we can't reliably reset
-                processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId)
+                processedCount = processArrayInArrayFormat(bufferedReader, fileSize, entries, processedCount, dictionaryId, frequencyData)
             } else {
                 // Process line by line (standard format)
                 Log.d(TAG, "Processing multi-line array format dictionary")
@@ -657,7 +686,7 @@ class MainViewModel : ViewModel() {
                                 try {
                                     // Parse the entry
                                     val jsonArray = JSONArray(sb.toString())
-                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId)
+                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId, frequencyData)
                                     if (parsedEntry != null) {
                                         entries.add(parsedEntry)
                                         processedCount++
@@ -777,7 +806,8 @@ class MainViewModel : ViewModel() {
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
         entriesProcessed: Int,
-        dictionaryId: Long
+        dictionaryId: Long,
+        frequencyData: Map<String, Int> = emptyMap()
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -859,7 +889,7 @@ class MainViewModel : ViewModel() {
                                             val nestedEntry = jsonArray.optJSONArray(i)
                                             if (nestedEntry != null) {
                                                 // Process each nested entry
-                                                val parsedEntry = parseTermBankEntry(nestedEntry, dictionaryId)
+                                                val parsedEntry = parseTermBankEntry(nestedEntry, dictionaryId, frequencyData)
                                                 if (parsedEntry != null) {
                                                     entries.add(parsedEntry)
                                                     processedCount++
@@ -885,7 +915,7 @@ class MainViewModel : ViewModel() {
                                     }
                                 } else {
                                     // Regular single entry - process normally
-                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId)
+                                    val parsedEntry = parseTermBankEntry(jsonArray, dictionaryId, frequencyData)
                                     
                                     if (parsedEntry != null) {
                                         // Add to the current batch
@@ -948,13 +978,15 @@ class MainViewModel : ViewModel() {
     
     /**
      * Process dictionary in object format with explicit term/reading/definition fields
+     * @param frequencyData Optional map containing frequency data for terms
      */
     private suspend fun processObjectFormatDictionary(
         bufferedReader: BufferedReader,
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
         entriesProcessed: Int,
-        dictionaryId: Long
+        dictionaryId: Long,
+        frequencyData: Map<String, Int> = emptyMap()
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -997,7 +1029,7 @@ class MainViewModel : ViewModel() {
                         try {
                             // Parse the entry
                             val jsonObject = JSONObject(sb.toString())
-                            val parsedEntry = parseObjectTermBankEntry(jsonObject, dictionaryId)
+                            val parsedEntry = parseObjectTermBankEntry(jsonObject, dictionaryId, frequencyData)
                             if (parsedEntry != null) {
                                 entries.add(parsedEntry)
                                 processedCount++
@@ -1031,13 +1063,15 @@ class MainViewModel : ViewModel() {
     
     /**
      * Process dictionary in simple text format (word:reading:definition)
+     * @param frequencyData Optional map containing frequency data for terms
      */
     private suspend fun processSimpleTextDictionary(
         bufferedReader: BufferedReader,
         fileSize: Long,
         entries: MutableList<DictionaryEntryEntity>,
         entriesProcessed: Int,
-        dictionaryId: Long
+        dictionaryId: Long,
+        frequencyData: Map<String, Int> = emptyMap()
     ): Int {
         var processedCount = entriesProcessed
         var bytesRead = 0L
@@ -1057,7 +1091,7 @@ class MainViewModel : ViewModel() {
                         }
                         
                         // Parse the line (we support various simple formats)
-                        val parsedEntry = parseSimpleTextEntry(currentLine, dictionaryId)
+                        val parsedEntry = parseSimpleTextEntry(currentLine, dictionaryId, frequencyData)
                         if (parsedEntry != null) {
                             entries.add(parsedEntry)
                             processedCount++
@@ -1080,8 +1114,12 @@ class MainViewModel : ViewModel() {
 
     /**
      * Parse a single term bank entry in array format
+     * @param termEntry The JSONArray to parse
+     * @param dictionaryId The dictionary ID to associate with this entry
+     * @param frequencyData Map of term to frequency data
+     * @return The parsed DictionaryEntryEntity or null if parsing failed
      */
-    private fun parseTermBankEntry(termEntry: JSONArray, dictionaryId: Long): DictionaryEntryEntity? {
+    private fun parseTermBankEntry(termEntry: JSONArray, dictionaryId: Long, frequencyData: Map<String, Int> = emptyMap()): DictionaryEntryEntity? {
         return try {
             // Validate entry structure
             if (termEntry.length() < 1) {
@@ -1271,6 +1309,9 @@ class MainViewModel : ViewModel() {
                 isHtml = false
             }
             
+            // Get frequency data if available
+            val frequency = frequencyData[term]
+            
             // Create entry and log definition info
             val entry = DictionaryEntryEntity(
                 dictionaryId = dictionaryId,
@@ -1279,8 +1320,14 @@ class MainViewModel : ViewModel() {
                 definition = definition,
                 partOfSpeech = partOfSpeech,
                 tags = tags,
-                isHtmlContent = isHtml
+                isHtmlContent = isHtml,
+                frequency = frequency
             )
+            
+            // Log frequency info for debugging
+            if (frequency != null && entryCount < 10) {
+                Log.d(TAG, "Added frequency data $frequency for term: $term")
+            }
             
             // Log some details about the entry for debugging - limit frequency for performance
             if (entryCount % 1000 == 0) {
@@ -1304,8 +1351,11 @@ class MainViewModel : ViewModel() {
     
     /**
      * Parse a term bank entry in object format
+     * @param termEntry JSON object containing the term data
+     * @param dictionaryId ID of the dictionary this entry belongs to
+     * @param frequencyData Optional map of term to frequency data
      */
-    private fun parseObjectTermBankEntry(termEntry: JSONObject, dictionaryId: Long): DictionaryEntryEntity? {
+    private fun parseObjectTermBankEntry(termEntry: JSONObject, dictionaryId: Long, frequencyData: Map<String, Int> = emptyMap()): DictionaryEntryEntity? {
         return try {
             // Get the fields
             val term = termEntry.getString("term")
@@ -1370,6 +1420,9 @@ class MainViewModel : ViewModel() {
                 emptyList()
             }
             
+            // Check for frequency data for this term
+            val frequency = frequencyData[term]
+            
             // Create entry
             val entry = DictionaryEntryEntity(
                 dictionaryId = dictionaryId,
@@ -1378,7 +1431,8 @@ class MainViewModel : ViewModel() {
                 definition = definition,
                 partOfSpeech = partOfSpeech,
                 tags = tags,
-                isHtmlContent = isHtml
+                isHtmlContent = isHtml,
+                frequency = frequency
             )
             
             // Log some details about the entry for debugging
@@ -1398,8 +1452,9 @@ class MainViewModel : ViewModel() {
     /**
      * Parse a term from a simple text format
      * Supports various formats like "term:reading:definition" or "term<tab>reading<tab>definition"
+     * @param frequencyData Optional map containing frequency data for terms
      */
-    private fun parseSimpleTextEntry(line: String, dictionaryId: Long): DictionaryEntryEntity? {
+    private fun parseSimpleTextEntry(line: String, dictionaryId: Long, frequencyData: Map<String, Int> = emptyMap()): DictionaryEntryEntity? {
         return try {
             // Try to split the line in various ways (tab, colon, etc.)
             val parts = when {
@@ -1425,6 +1480,9 @@ class MainViewModel : ViewModel() {
             // Extract definition (optional)
             val definition = if (parts.size > 2) parts.subList(2, parts.size).joinToString("; ") else ""
             
+            // Get frequency data if available
+            val frequency = frequencyData[term]
+            
             // Create entry
             val entry = DictionaryEntryEntity(
                 dictionaryId = dictionaryId,
@@ -1433,7 +1491,8 @@ class MainViewModel : ViewModel() {
                 definition = definition,
                 partOfSpeech = "",
                 tags = emptyList(),
-                isHtmlContent = false // Explicitly set to false for simple text entries
+                isHtmlContent = false, // Explicitly set to false for simple text entries
+                frequency = frequency
             )
             
             // Log some details about the entry for debugging
@@ -1675,17 +1734,56 @@ class MainViewModel : ViewModel() {
             tagString.split(",").map { it.trim() }
         }
     }
+    
+    /**
+     * Loads frequency data from a term_meta_bank file
+     * This parses files in the format: [["term","freq",12345], ...]
+     */
+    private fun loadFrequencyData(metaBankFile: File, frequencyMap: MutableMap<String, Int>) {
+        try {
+            // Read the file content
+            val content = metaBankFile.readText()
+            
+            // Parse the JSON array
+            val jsonArray = JSONArray(content)
+            
+            // Process each entry
+            for (i in 0 until jsonArray.length()) {
+                try {
+                    val entry = jsonArray.getJSONArray(i)
+                    
+                    // Check if this is a frequency entry
+                    if (entry.length() >= 3 && entry.getString(1) == "freq") {
+                        val term = entry.getString(0)
+                        val frequency = entry.getInt(2)
+                        
+                        // Store in the map
+                        frequencyMap[term] = frequency
+                    }
+                } catch (e: Exception) {
+                    // Skip problematic entries
+                    Log.e(TAG, "Error parsing frequency entry: ${e.message}")
+                }
+            }
+            
+            Log.d(TAG, "Processed ${frequencyMap.size} frequency entries from ${metaBankFile.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading frequency data: ${e.message}")
+        }
+    }
 }
 
-/**
- * Dictionary information
- */
-data class DictionaryInfo(
-    val title: String,
-    val revision: String,
-    val format: Int,
-    val author: String,
-    val description: String,
-    val sourceLanguage: String,
-    val targetLanguage: String
-)
+
+    
+    /**
+     * Dictionary information
+     */
+    data class DictionaryInfo(
+        val title: String,
+        val revision: String,
+        val format: Int,
+        val author: String,
+        val description: String,
+        val sourceLanguage: String,
+        val targetLanguage: String
+    )
