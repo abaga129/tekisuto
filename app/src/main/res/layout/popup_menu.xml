@@ -5,8 +5,9 @@
     android:layout_height="wrap_content"
     app:cardCornerRadius="12dp"
     app:cardElevation="8dp"
-    app:cardBackgroundColor="@color/white"
-    app:cardUseCompatPadding="true">
+    app:cardBackgroundColor="?attr/colorSurface"
+    app:cardUseCompatPadding="true"
+    style="@style/Widget.Tekisuto.OcrPopupCard">
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -21,7 +22,7 @@
             android:textAlignment="center"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/primary"
+            android:textColor="?attr/colorPrimary"
             android:layout_marginBottom="16dp" />
 
         <Button
@@ -33,17 +34,23 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:layout_marginBottom="12dp"
-            android:backgroundTint="@color/primary"
-            android:textColor="@color/text_light" />
+            style="@style/Widget.Tekisuto.Button" />
 
         <Button
             android:id="@+id/btn_close"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/close"
-            android:backgroundTint="@color/white"
-            android:textColor="@color/primary"
-            style="?android:attr/buttonBarButtonStyle" />
+            android:layout_marginBottom="12dp"
+            style="@style/Widget.Tekisuto.Button.OutlinedButton" />
+            
+        <Button
+            android:id="@+id/btn_exit_tekisuto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/exit_tekisuto"
+            android:backgroundTint="?attr/colorSecondary"
+            android:textColor="?attr/colorOnSecondary" />
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

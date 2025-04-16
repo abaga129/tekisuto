@@ -59,4 +59,12 @@
         <item name="cardElevation">2dp</item>
         <item name="cardCornerRadius">8dp</item>
     </style>
+    
+    <!-- OCR Popup Card style -->
+    <style name="Widget.Tekisuto.OcrPopupCard" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/card_background</item>
+        <item name="cardElevation">8dp</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="contentPadding">0dp</item>
+    </style>
 </resources>

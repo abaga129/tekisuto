@@ -8,6 +8,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
+import androidx.preference.SeekBarPreference
 import com.abaga129.tekisuto.R
 
 private const val TAG = "SettingsFragment"
@@ -23,6 +24,23 @@ class SettingsFragment : PreferenceFragmentCompat() {
             
             languagePref.setOnPreferenceChangeListener { _, newValue ->
                 Log.d(TAG, "OCR language changed to: $newValue")
+                true
+            }
+        }
+        
+        // Long press settings
+        findPreference<SwitchPreferenceCompat>("enable_long_press_capture")?.let { longPressEnablePref ->
+            longPressEnablePref.setOnPreferenceChangeListener { _, newValue ->
+                val enabled = newValue as Boolean
+                Log.d(TAG, "Long press capture enabled: $enabled")
+                true
+            }
+        }
+        
+        findPreference<SeekBarPreference>("long_press_duration")?.let { durationPref ->
+            durationPref.setOnPreferenceChangeListener { _, newValue ->
+                val duration = newValue as Int
+                Log.d(TAG, "Long press duration set to: $duration ms")
                 true
             }
         }

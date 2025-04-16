@@ -47,6 +47,24 @@
             android:defaultValue="true"
             app:iconSpaceReserved="false" />
             
+        <SwitchPreferenceCompat
+            android:key="enable_long_press_capture"
+            android:title="@string/enable_long_press_capture_title"
+            android:summary="@string/enable_long_press_capture_summary"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+            
+        <SeekBarPreference
+            android:key="long_press_duration"
+            android:title="@string/long_press_duration_title"
+            android:summary="@string/long_press_duration_summary"
+            android:defaultValue="500"
+            android:min="300"
+            android:max="1500"
+            app:showSeekBarValue="true"
+            android:dependency="enable_long_press_capture"
+            app:iconSpaceReserved="false" />
+            
     </PreferenceCategory>
     
     <PreferenceCategory

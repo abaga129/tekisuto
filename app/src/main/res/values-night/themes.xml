@@ -46,4 +46,12 @@
         <item name="cardElevation">2dp</item>
         <item name="cardCornerRadius">8dp</item>
     </style>
+    
+    <!-- OCR Popup Card style for dark theme -->
+    <style name="Widget.Tekisuto.OcrPopupCard" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">#2A3C44</item> <!-- Same as dark card background -->
+        <item name="cardElevation">8dp</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="contentPadding">0dp</item>
+    </style>
 </resources>

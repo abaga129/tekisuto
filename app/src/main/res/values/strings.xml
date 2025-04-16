@@ -6,16 +6,17 @@
     <!-- Main Activity -->
     <string name="app_description">Screen Reader OCR Accessibility Service</string>
     <string name="app_icon_description">OCR App Icon</string>
-    <string name="service_instructions">Enable the accessibility service to use the OCR feature through the accessibility button</string>
+    <string name="service_instructions">Enable the accessibility service to use the OCR feature with a movable floating button</string>
     <string name="service_status">Service Status:</string>
     <string name="service_enabled">Enabled</string>
     <string name="service_disabled">Disabled</string>
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
-    <string name="usage_instructions">After enabling the service, you can access the OCR feature by clicking the accessibility button that appears on the edge of your screen</string>
+    <string name="usage_instructions">After enabling the service, you can access the OCR feature using the floating button. You can move the button anywhere on screen and close it when not in use.</string>
+    <string name="open_ocr_button">Open OCR button</string>
 
     <!-- Accessibility Service -->
-    <string name="accessibility_service_description">Provides OCR functionality for any screen content via the accessibility button</string>
-    <string name="accessibility_service_summary">Touch the accessibility button to scan any text on screen</string>
+    <string name="accessibility_service_description">Provides OCR functionality for any screen content via a movable floating button</string>
+    <string name="accessibility_service_summary">Use the floating button to scan any text on screen</string>
     
     <!-- OCR Language Settings -->
     <string name="ocr_settings_title" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
@@ -27,6 +28,10 @@
     <!-- Screenshot Settings -->
     <string name="hide_accessibility_button_title">Hide Accessibility Button</string>
     <string name="hide_accessibility_button_summary">Attempt to remove the accessibility button from screenshots</string>
+    <string name="enable_long_press_capture_title">Enable Long-Press Capture</string>
+    <string name="enable_long_press_capture_summary">Directly capture screen without menu when long-pressing the button</string>
+    <string name="long_press_duration_title">Long-Press Duration</string>
+    <string name="long_press_duration_summary">Duration in milliseconds for detecting a long press</string>
     
     <string-array name="ocr_language_entries">
         <item>Latin (English, Spanish, French, etc.)</item>
@@ -48,6 +53,7 @@
     <string name="menu_title">Tekisuto Scan</string>
     <string name="perform_ocr">Scan Text (OCR)</string>
     <string name="close">Close</string>
+    <string name="exit_tekisuto">Exit Tekisuto</string>
 
     <!-- OCR Result Activity -->
     <string name="ocr_result_title">OCR Result</string>
