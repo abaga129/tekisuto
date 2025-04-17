@@ -474,7 +474,7 @@ class OCRResultActivity : AppCompatActivity(),
 
         // Close button
         closeButton.setOnClickListener {
-            finish()
+            finishAndRemoveTask()
         }
     }
     

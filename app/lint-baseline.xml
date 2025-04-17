@@ -8,7 +8,7 @@
         errorLine2="                                                                                        ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/service/AccessibilityOcrService.kt"
-            line="314"
+            line="257"
             column="89"/>
     </issue>
 
@@ -63,7 +63,7 @@
         errorLine2="                                                                                        ~~~~~~">
         <location
             file="src/main/java/com/abaga129/tekisuto/ui/ImageCropActivity.kt"
-            line="192"
+            line="193"
             column="89"/>
     </issue>
 
@@ -76,6 +76,39 @@
             file="src/main/java/com/abaga129/tekisuto/viewmodel/OCRResultViewModel.kt"
             line="266"
             column="93"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                    lastActionTime = System.currentTimeMillis()"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/service/FloatingButtonHandler.kt"
+            line="258"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                    val isQuickTap = System.currentTimeMillis() - lastActionTime &lt; CLICK_TIME_THRESHOLD"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/service/FloatingButtonHandler.kt"
+            line="312"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="DirectSystemCurrentTimeMillisUsage"
+        message="Use the collection&apos;s getTime() method instead of System.currentTimeMillis()"
+        errorLine1="                        val currentTime = System.currentTimeMillis()"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/abaga129/tekisuto/service/FloatingButtonHandler.kt"
+            line="321"
+            column="43"/>
     </issue>
 
     <issue

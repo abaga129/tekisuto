@@ -39,13 +39,6 @@
     <PreferenceCategory
         android:title="Screenshot Settings"
         app:iconSpaceReserved="false">
-        
-        <SwitchPreferenceCompat
-            android:key="hide_accessibility_button"
-            android:title="@string/hide_accessibility_button_title"
-            android:summary="@string/hide_accessibility_button_summary"
-            android:defaultValue="true"
-            app:iconSpaceReserved="false" />
             
         <SwitchPreferenceCompat
             android:key="enable_long_press_capture"

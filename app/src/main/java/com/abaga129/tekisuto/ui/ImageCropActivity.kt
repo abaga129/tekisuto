@@ -134,8 +134,9 @@ class ImageCropActivity : AppCompatActivity() {
             Toast.makeText(this, "Error during cropping", Toast.LENGTH_SHORT).show()
             finish()
         } else if (resultCode == RESULT_CANCELED) {
-            // User cancelled the crop, use original image
-            processOriginalImage()
+            // User cancelled the crop, exit and return to previous app
+            Log.d(TAG, "User cancelled crop operation, finishing activity")
+            finishAndRemoveTask()
         }
     }
 
