@@ -1,6 +1,6 @@
 # Tekisuto User Guide
 
-Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool designed for language learners. This guide will walk you through setting up and using the app effectively.
+Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool designed for language learners. This guide will help you set up and use the app effectively to enhance your language learning experience.
 
 ## Table of Contents
 
@@ -16,15 +16,18 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool designed 
   - [Word Lookup](#word-lookup)
   - [Searching Dictionaries](#searching-dictionaries)
 - [Advanced Features](#advanced-features)
+  - [Profile Management](#profile-management)
+    - [Creating Profiles](#creating-profiles)
+    - [Switching Profiles](#switching-profiles)
+  - [App Whitelist](#app-whitelist)
   - [Managing Dictionaries](#managing-dictionaries)
   - [Exporting to AnkiDroid](#exporting-to-ankidroid)
   - [Saving and Sharing OCR Results](#saving-and-sharing-ocr-results)
 - [Troubleshooting](#troubleshooting)
   - [OCR Quality Issues](#ocr-quality-issues)
   - [Dictionary Lookup Problems](#dictionary-lookup-problems)
-    - [Finding Specific Words](#finding-specific-words)
   - [AnkiDroid Connection Issues](#ankidroid-connection-issues)
-    - [Anki Package Import Issues](#anki-package-import-issues)
+  - [App Whitelist Issues](#app-whitelist-issues)
 - [Privacy and Data](#privacy-and-data)
 
 ## Setup
@@ -85,7 +88,7 @@ To capture and process text from any app:
 
 1. With the accessibility service enabled, you'll see an OCR button overlay
 2. Navigate to content you want to capture in any app
-3. Tap the OCR button
+3. Tap the OCR button (or double-tap, depending on your settings)
 4. A screenshot will be taken
 
 ### Text Selection
@@ -119,6 +122,41 @@ The search results are intelligently ordered:
 - Results are further ranked by dictionary priority
 
 ## Advanced Features
+
+### Profile Management
+
+Tekisuto supports multiple profiles for different language learning setups or preferences.
+
+#### Creating Profiles
+
+1. Go to "Settings" → "Profiles"
+2. Tap the "+" button to create a new profile
+3. Enter a name for your profile (e.g., "Japanese", "Chinese", "Spanish")
+4. Configure settings specific to this profile:
+   - OCR settings (script recognition, text processing options)
+   - Dictionary priorities
+   - AnkiDroid export configurations
+5. Save your profile
+
+#### Switching Profiles
+
+1. Go to "Settings" → "Profiles"
+2. Tap on the profile you want to activate
+3. The app will switch to the selected profile, updating all settings accordingly
+4. A toast notification will confirm the profile change
+
+Use profiles to quickly switch between different language learning setups without having to reconfigure everything manually.
+
+### App Whitelist
+
+You can configure Tekisuto to automatically activate when opening specific apps:
+
+1. Go to "Settings" → "App Whitelist"
+2. Browse the list of installed apps
+3. Toggle the switch for apps you want to whitelist
+4. When you open a whitelisted app, Tekisuto's OCR button will automatically appear
+
+This feature is useful for apps you frequently use for language learning, such as e-readers, social media, browser apps, or language learning apps.
 
 ### Managing Dictionaries
 
@@ -170,13 +208,7 @@ If dictionary lookup is not working correctly:
 - Verify dictionaries are working by using the direct search function
 - Try reordering dictionaries in Dictionary Manager
 - For structured content dictionaries, ensure they are properly formatted
-
-#### Finding Specific Words
-
-If you're having trouble finding a specific word:
-- Use the exact term in your search query
-- The search prioritizes exact matches at the top of results
-- If looking for a common word that might appear in many definitions, try typing the complete word instead of just a few letters
+- If you've switched profiles, make sure the correct dictionaries are active for that profile
 
 ### AnkiDroid Connection Issues
 
@@ -186,14 +218,16 @@ If AnkiDroid integration is not working:
 - Reconfigure the AnkiDroid settings in Tekisuto
 - Check that your selected deck and note type exist in AnkiDroid
 - Verify your field mappings are correct
+- If using multiple profiles, confirm the AnkiDroid configuration for the current profile
 
-#### Anki Package Import Issues
+### App Whitelist Issues
 
-If you have problems importing from .apkg files:
-- For Anki 2.1 packages, make sure you're using the latest version of Tekisuto
-- If you see an error about "legacy export", try re-exporting from Anki with the "Legacy format (Anki 2.0)" option enabled
-- Check that the .apkg file contains the vocabulary you expect
-- Verify that the field names you select actually contain the terms you want to track
+If the OCR button doesn't appear in whitelisted apps:
+
+- Check that the app is properly whitelisted in Settings
+- Ensure the accessibility service is active
+- Try reopening the app or restarting the accessibility service
+- Some apps with custom UI implementations might not trigger the whitelist correctly
 
 ## Privacy and Data
 
@@ -202,4 +236,65 @@ Tekisuto respects your privacy:
 - All text processing happens on your device
 - No data is sent to remote servers
 - Dictionary data remains on your device
+- No personal information is collected
 
+## Dictionary Lookup Deep Dive
+
+For language learners, high-quality dictionary lookup is essential. Tekisuto provides powerful features to make your lookup experience more effective:
+
+### Dictionary Prioritization
+
+Dictionaries are searched in priority order (top to bottom in Dictionary Manager):
+
+1. Higher priority dictionaries are searched first
+2. This allows you to prioritize specialized dictionaries for specific domains
+3. You can create separate profiles with different dictionary priorities for different learning contexts
+
+### Smart Search Algorithm
+
+The search system uses a multi-tier approach:
+
+1. **Exact matches** - Words that exactly match your search term
+2. **Prefix matches** - Words that begin with your search term
+3. **Substring matches** - Words that contain your search term
+4. **Definition matches** - Words whose definitions contain your search term
+
+This tiered approach ensures the most relevant results appear first, even when searching large dictionaries.
+
+### Dictionary Types Support
+
+Tekisuto supports various Yomitan/Yomichan dictionary formats:
+
+- Term dictionaries (word → definition)
+- Kanji dictionaries (single character analysis)
+- Name dictionaries (proper names)
+- Structured dictionaries with tags and categories
+
+## OCR Settings and Optimization
+
+To get the best OCR results across different languages and scripts:
+
+### Script-Specific Settings
+
+Different language profiles can have different OCR optimizations:
+
+1. CJK (Chinese, Japanese, Korean) - Optimized for character recognition
+2. Latin script languages - Optimized for letter recognition
+3. Other scripts (Devanagari, Cyrillic, etc.) - Specific optimizations available
+
+### Text Processing Options
+
+Fine-tune OCR text processing in profile settings:
+
+1. Text segmentation (word spacing)
+2. Punctuation handling
+3. Line break management
+4. Character confidence thresholds
+
+### Performance Settings
+
+Balance OCR quality and speed:
+
+1. Image resolution settings
+2. Processing priority (speed vs. accuracy)
+3. Background processing options

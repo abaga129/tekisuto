@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:padding="16dp">
 
-    <TextView
+    <androidx.emoji2.widget.EmojiTextView
         android:id="@+id/dictionary_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -14,17 +14,19 @@
         android:textAlignment="center"
         android:textSize="20sp"
         android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
+    <androidx.emoji2.widget.EmojiTextView
         android:id="@+id/dictionary_stats"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:textAlignment="center"
         android:textStyle="italic"
+        android:textColor="?attr/colorOnSurfaceVariant"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dictionary_title"
@@ -37,6 +39,7 @@
         android:layout_marginTop="16dp"
         app:cardCornerRadius="8dp"
         app:cardElevation="4dp"
+        app:cardBackgroundColor="?attr/colorSurface"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dictionary_stats">
@@ -56,7 +59,9 @@
                 android:hint="@string/search_dictionary_hint"
                 android:importantForAutofill="no"
                 android:inputType="text"
-                android:padding="8dp" />
+                android:padding="8dp"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="?attr/colorOnSurfaceVariant" />
 
             <ImageButton
                 android:id="@+id/clear_search_button"
@@ -94,13 +99,14 @@
         app:layout_constraintTop_toBottomOf="@+id/search_card"
         tools:visibility="visible" />
 
-    <TextView
+    <androidx.emoji2.widget.EmojiTextView
         android:id="@+id/no_results_text_view"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:text="@string/no_dictionary_results"
         android:textSize="16sp"
+        android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

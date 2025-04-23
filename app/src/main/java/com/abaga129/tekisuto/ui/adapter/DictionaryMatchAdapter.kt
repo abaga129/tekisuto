@@ -11,11 +11,13 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.emoji2.text.EmojiCompat
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import android.content.res.ColorStateList
+import android.util.TypedValue
 import androidx.core.content.ContextCompat
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
@@ -106,6 +108,16 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
         private val cardView: androidx.cardview.widget.CardView = itemView.findViewById(R.id.dictionary_item_card)
 
+        /**
+         * Get theme-aware surface color to respect light/dark theme
+         */
+        private fun getThemeSurfaceColor(): Int {
+            val typedValue = TypedValue()
+            val theme = itemView.context.theme
+            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+            return typedValue.data
+        }
+
         fun bind(
             entry: DictionaryEntryEntity, 
             ankiExportListener: OnAnkiExportListener?,
@@ -117,9 +129,19 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             // Log entry details for debugging
             Log.d("DictionaryAdapter", "Processing entry: ${entry.term}, isHtml=${entry.isHtmlContent}")
             
+            // Process text with EmojiCompat
+            val emojiCompat = EmojiCompat.get()
+            
             // Display term or show placeholder if empty
             if (entry.term.isNotBlank()) {
-                termTextView.text = entry.term
+                // Use EmojiCompat to process the text
+                try {
+                    val processedTerm = emojiCompat.process(entry.term)
+                    termTextView.text = processedTerm
+                } catch (e: Exception) {
+                    Log.e("DictionaryAdapter", "Error processing emoji in term: ${e.message}")
+                    termTextView.text = entry.term
+                }
                 termTextView.visibility = View.VISIBLE
             } else {
                 termTextView.visibility = View.GONE
@@ -127,7 +149,13 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             
             // Display reading or hide if empty
             if (entry.reading.isNotBlank()) {
-                readingTextView.text = entry.reading
+                try {
+                    val processedReading = emojiCompat.process(entry.reading)
+                    readingTextView.text = processedReading
+                } catch (e: Exception) {
+                    Log.e("DictionaryAdapter", "Error processing emoji in reading: ${e.message}")
+                    readingTextView.text = entry.reading
+                }
                 readingTextView.visibility = View.VISIBLE
             } else {
                 readingTextView.visibility = View.GONE
@@ -135,7 +163,13 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             
             // Display part of speech or hide if empty
             if (entry.partOfSpeech.isNotBlank()) {
-                partOfSpeechTextView.text = entry.partOfSpeech
+                try {
+                    val processedPos = emojiCompat.process(entry.partOfSpeech)
+                    partOfSpeechTextView.text = processedPos
+                } catch (e: Exception) {
+                    Log.e("DictionaryAdapter", "Error processing emoji in part of speech: ${e.message}")
+                    partOfSpeechTextView.text = entry.partOfSpeech
+                }
                 partOfSpeechTextView.visibility = View.VISIBLE
             } else {
                 partOfSpeechTextView.visibility = View.GONE
@@ -198,8 +232,21 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                             Html.FROM_HTML_MODE_COMPACT
                         )
                         
-                        definitionTextView.text = htmlContent
-                        Log.d("DictionaryAdapter", "HTML rendered successfully. Length: ${htmlContent.length}")
+                        // Process the spanned content with EmojiCompat
+                        try {
+                            val processedContent = emojiCompat.process(htmlContent)
+                            if (processedContent != null) {
+                                definitionTextView.text = processedContent
+                                Log.d("DictionaryAdapter", "HTML rendered with emoji support. Length: ${processedContent.length}")
+                            } else {
+                                definitionTextView.text = htmlContent
+                                Log.d("DictionaryAdapter", "EmojiCompat.process returned null, using original HTML content")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("DictionaryAdapter", "Error processing emoji in HTML content: ${e.message}", e)
+                            // Fallback to regular HTML content
+                            definitionTextView.text = htmlContent
+                        }
                     } catch (e: Exception) {
                         Log.e("DictionaryAdapter", "Error rendering HTML: ${e.message}", e)
                         // Fallback to plain text on error
@@ -212,16 +259,45 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                     }
                     
                     // Format plain text definition - preserve line breaks and add spacing
-                    definitionTextView.text = entry.definition
-                        .replace("\n", "\n\n") // Double-space between list items for better readability
-                    Log.d("DictionaryAdapter", "Setting plain text definition")
+                    try {
+                        // Process with EmojiCompat first
+                        val processedText = emojiCompat.process(entry.definition)
+                        
+                        // Handle the null case safely
+                        if (processedText != null) {
+                            val processedString = processedText.toString()
+                            if (processedString.contains("\n")) {
+                                // If there are newlines, add extra spacing
+                                definitionTextView.text = processedString.replace("\n", "\n\n")
+                            } else {
+                                // No newlines to replace
+                                definitionTextView.text = processedString
+                            }
+                        } else {
+                            // If processedText is null, use the original definition
+                            if (entry.definition.contains("\n")) {
+                                definitionTextView.text = entry.definition.replace("\n", "\n\n")
+                            } else {
+                                definitionTextView.text = entry.definition
+                            }
+                        }
+                        
+                        Log.d("DictionaryAdapter", "Setting plain text definition with emoji support")
+                    } catch (e: Exception) {
+                        Log.e("DictionaryAdapter", "Error processing emoji in plain text: ${e.message}", e)
+                        // Fallback to regular plain text
+                        if (entry.definition.contains("\n")) {
+                            definitionTextView.text = entry.definition.replace("\n", "\n\n")
+                        } else {
+                            definitionTextView.text = entry.definition
+                        }
+                        Log.d("DictionaryAdapter", "Setting plain text definition (without emoji support)")
+                    }
                 }
                 
-                android.util.Log.d("DictionaryAdapter", "Setting definition: ${entry.definition.take(100)}...")
                 definitionTextView.visibility = View.VISIBLE
             } else {
                 definitionTextView.text = "(No definition available)"
-                android.util.Log.d("DictionaryAdapter", "No definition available for term: ${entry.term}")
                 definitionTextView.visibility = View.VISIBLE
             }
             
@@ -240,13 +316,35 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                             exportToAnkiButton.setImageTintList(ColorStateList.valueOf(
                                 ContextCompat.getColor(itemView.context, R.color.exported_hint)))
                             
-                            // Add a small text indicator to term text
-                            termTextView.text = "${entry.term} ✓"
+                            // Add a small text indicator to term text with emoji support
+                            try {
+                                val exportedText = emojiCompat.process("${entry.term} ✓")
+                                if (exportedText != null) {
+                                    termTextView.text = exportedText
+                                } else {
+                                    termTextView.text = "${entry.term} ✓"
+                                }
+                            } catch (e: Exception) {
+                                Log.e("DictionaryAdapter", "Error processing emoji in exported term: ${e.message}")
+                                termTextView.text = "${entry.term} ✓"
+                            }
                         } else {
-                            // Reset to normal colors
-                            cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.card_background))
+                            // Reset to normal colors - use theme-aware color
+                            cardView.setCardBackgroundColor(getThemeSurfaceColor())
                             exportToAnkiButton.setImageTintList(null)
-                            termTextView.text = entry.term
+                            
+                            // Use emoji support for the term
+                            try {
+                                val termText = emojiCompat.process(entry.term)
+                                if (termText != null) {
+                                    termTextView.text = termText
+                                } else {
+                                    termTextView.text = entry.term
+                                }
+                            } catch (e: Exception) {
+                                Log.e("DictionaryAdapter", "Error processing emoji in term: ${e.message}")
+                                termTextView.text = entry.term
+                            }
                         }
                     }
                 }
@@ -283,25 +381,14 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             } else {
                 playAudioButton.visibility = View.GONE
             }
-
-            // Log the entry for debugging
-            android.util.Log.d("DictionaryAdapter", "Entry: [term=${entry.term}, reading=${entry.reading}, " +
-                    "partOfSpeech=${entry.partOfSpeech}, definition=${entry.definition.take(30)}...]")
         }
         
-        /**
-         * Determine the language of the dictionary entry for audio generation
-         * 
-         * 1. First check if we have dictionary metadata with sourceLanguage
-         * 2. If not, try to detect based on characters in the term/reading
-         * 3. Lastly, use a Latin character analysis to distinguish European languages
-         */
         /**
          * Reset the card to default state (used when recycling views)
          */
         fun resetExportedState() {
-            // Reset to normal colors
-            cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.card_background))
+            // Reset to normal colors - use theme-aware color
+            cardView.setCardBackgroundColor(getThemeSurfaceColor())
             exportToAnkiButton.setImageTintList(null)
             // Note: We don't reset the termTextView text here as it will be set during bind()
         }
@@ -384,8 +471,6 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 else -> "en"
             }
         }
-        
-        // Language mapping now handled by DictionaryLanguageHelper
     }
 
     private class DiffCallback : DiffUtil.ItemCallback<DictionaryEntryEntity>() {

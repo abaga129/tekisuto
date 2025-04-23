@@ -31,8 +31,8 @@ class SpeechService(private val context: Context) {
         // Cache directory for storing audio files
         private const val AUDIO_CACHE_DIR = "audio_cache"
         
-        // Mapping of language codes to voice names
-        private val VOICE_MAPPING = mapOf(
+        // Default voice mapping as a fallback if no voice is selected
+        private val DEFAULT_VOICE_MAPPING = mapOf(
             "ja" to "ja-JP-NanamiNeural", // Japanese
             "zh" to "zh-CN-XiaoxiaoNeural", // Chinese (Simplified)
             "ko" to "ko-KR-SunHiNeural",  // Korean
@@ -43,6 +43,9 @@ class SpeechService(private val context: Context) {
             "it" to "it-IT-ElsaNeural",   // Italian
             "ru" to "ru-RU-SvetlanaNeural" // Russian
         )
+        
+        // Preference keys
+        private const val PREF_VOICE_SELECTION_PREFIX = "azure_voice_for_"
     }
     
     // Cache to prevent regenerating the same audio multiple times
@@ -87,9 +90,20 @@ class SpeechService(private val context: Context) {
                     return@withContext null
                 }
                 
+                // Check if a custom voice is selected for this language
+                val customVoiceKey = PREF_VOICE_SELECTION_PREFIX + language
+                val customVoice = sharedPreferences.getString(customVoiceKey, null)
+                
                 // Determine voice based on language
-                val voiceName = VOICE_MAPPING[language] ?: VOICE_MAPPING["en"] ?: "en-US-JennyNeural"
-                Log.e(TAG, "🎤 Using voice: $voiceName for language: $language")
+                val voiceName = if (!customVoice.isNullOrEmpty()) {
+                    // Use custom selected voice
+                    customVoice
+                } else {
+                    // Fall back to default mapping
+                    DEFAULT_VOICE_MAPPING[language] ?: DEFAULT_VOICE_MAPPING["en"] ?: "en-US-JennyNeural"
+                }
+                
+                Log.e(TAG, "🎤 Using voice: $voiceName for language: '$language' (Custom: ${!customVoice.isNullOrEmpty()})")
                 
                 // Create file for saving audio
                 val audioFile = createAudioFile()
@@ -139,6 +153,37 @@ class SpeechService(private val context: Context) {
                 return@withContext null
             }
         }
+    }
+    
+    /**
+     * Save a custom voice selection for a specific language
+     * 
+     * @param language Language code (e.g., "ja" for Japanese)
+     * @param voiceName Full voice name (e.g., "ja-JP-NanamiNeural")
+     */
+    fun saveVoiceSelection(language: String, voiceName: String) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val key = PREF_VOICE_SELECTION_PREFIX + language
+        sharedPreferences.edit().putString(key, voiceName).apply()
+        Log.d(TAG, "Saved voice selection for $language: $voiceName")
+    }
+    
+    /**
+     * Get the currently selected voice for a language
+     * 
+     * @param language Language code (e.g., "ja" for Japanese)
+     * @return The selected voice name or null if not set
+     */
+    fun getSelectedVoice(language: String): String? {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val key = PREF_VOICE_SELECTION_PREFIX + language
+        val voice = sharedPreferences.getString(key, null)
+        
+        if (voice.isNullOrEmpty()) {
+            return DEFAULT_VOICE_MAPPING[language]
+        }
+        
+        return voice
     }
     
     /**

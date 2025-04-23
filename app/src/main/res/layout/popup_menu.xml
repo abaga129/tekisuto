@@ -25,6 +25,7 @@
             android:textColor="?attr/colorPrimary"
             android:layout_marginBottom="16dp" />
 
+        <!-- Improved OCR Button -->
         <Button
             android:id="@+id/btn_ocr"
             android:layout_width="match_parent"
@@ -34,6 +35,11 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:layout_marginBottom="12dp"
+            android:backgroundTint="?attr/colorPrimary"
+            android:textColor="@android:color/white"
+            android:minHeight="48dp"
+            android:textSize="16sp"
+            android:textAllCaps="false"
             style="@style/Widget.Tekisuto.Button" />
 
         <Button
@@ -42,6 +48,8 @@
             android:layout_height="wrap_content"
             android:text="@string/close"
             android:layout_marginBottom="12dp"
+            android:minHeight="48dp"
+            android:textAllCaps="false"
             style="@style/Widget.Tekisuto.Button.OutlinedButton" />
             
         <Button
@@ -50,7 +58,9 @@
             android:layout_height="wrap_content"
             android:text="@string/exit_tekisuto"
             android:backgroundTint="?attr/colorSecondary"
-            android:textColor="?attr/colorOnSecondary" />
+            android:textColor="?attr/colorOnSecondary"
+            android:minHeight="48dp"
+            android:textAllCaps="false" />
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

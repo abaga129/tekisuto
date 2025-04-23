@@ -3,6 +3,7 @@ package com.abaga129.tekisuto.ui.dictionary
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -15,6 +16,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.isVisible
+import androidx.emoji2.text.EmojiCompat
+import androidx.emoji2.widget.EmojiTextView
 import androidx.lifecycle.coroutineScope
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -163,7 +166,26 @@ class DictionaryBrowserFragment : Fragment(), DictionaryMatchAdapter.OnAnkiExpor
         
         // Observe dictionary stats
         viewModel.entryCount.observe(viewLifecycleOwner) { count ->
-            dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+            try {
+                // Try to use EmojiCompat if available
+                if (dictionaryStatsTextView is EmojiTextView) {
+                    // EmojiTextView will handle emoji processing automatically
+                    dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+                } else {
+                    // For TextView, manually process with EmojiCompat
+                    val statsText = getString(R.string.dictionary_stats, count)
+                    try {
+                        dictionaryStatsTextView.text = EmojiCompat.get().process(statsText)
+                    } catch (e: Exception) {
+                        Log.e("DictionaryBrowserFragment", "Error processing emoji in stats text: ${e.message}")
+                        dictionaryStatsTextView.text = statsText
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("DictionaryBrowserFragment", "Error setting stats text with emoji: ${e.message}")
+                // Fallback to standard text setting
+                dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+            }
         }
     }
     

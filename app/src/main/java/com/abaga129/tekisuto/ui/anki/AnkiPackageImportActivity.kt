@@ -14,9 +14,9 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.R
+import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.util.AnkiPackageImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 /**
  * Activity for importing words from Anki .apkg files
  */
-class AnkiPackageImportActivity : AppCompatActivity() {
+class AnkiPackageImportActivity : BaseEdgeToEdgeActivity() {
 
     private lateinit var selectFileButton: Button
     private lateinit var fieldSpinner: Spinner
@@ -54,6 +54,9 @@ class AnkiPackageImportActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_anki_package_import)
+        
+        // Apply insets to the root view
+        applyInsetsToView(android.R.id.content)
         
         // Set up the action bar
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

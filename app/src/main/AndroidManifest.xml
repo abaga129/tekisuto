@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.abaga129.tekisuto">
 
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
@@ -15,10 +16,20 @@
     <!-- For ML Kit OCR functionality -->
     <uses-permission android:name="android.permission.INTERNET" />
     
-    <!-- For AnkiDroid integration -->
+    <!-- For AnkiDroid integration and app whitelist -->
     <queries>
+        <!-- Specific package for AnkiDroid -->
         <package android:name="com.ichi2.anki" />
+        
+        <!-- Allow querying all installed packages -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
     </queries>
+    
+    <!-- For querying packages in Android 11+ -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" 
+        tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:name=".TekisutoApplication"
@@ -27,7 +38,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MaterialComponents"
+        android:theme="@style/Theme.Tekisuto"
         android:requestLegacyExternalStorage="${requestLegacyExternalStorage}"
         android:largeHeap="true">
 
@@ -46,6 +57,9 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.abaga129.tekisuto.action.SHOW_FLOATING_BUTTON" />
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
@@ -90,6 +104,17 @@
             android:name=".ui.dictionary.DictionaryManagerActivity"
             android:exported="false"
             android:label="@string/dictionary_manager_title" />
+            
+        <activity
+            android:name=".ui.profile.ProfileManagerActivity"
+            android:exported="true"
+            android:label="@string/profile_manager_title" />
+            
+        <activity
+            android:name=".ui.whitelist.AppWhitelistActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Tekisuto.NoActionBar"
+            android:label="App Whitelist" />
 
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

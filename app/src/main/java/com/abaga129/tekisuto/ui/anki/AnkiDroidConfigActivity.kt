@@ -2,6 +2,7 @@ package com.abaga129.tekisuto.ui.anki
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.MenuItem
 import android.view.View
 import android.widget.AdapterView
@@ -10,18 +11,21 @@ import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.R
+import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
-import com.ichi2.anki.api.AddContentApi
+import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class AnkiDroidConfigActivity : AppCompatActivity() {
+class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
 
     private lateinit var ankiDroidHelper: AnkiDroidHelper
+    private lateinit var profileViewModel: ProfileViewModel
     
     // UI Components
     private lateinit var statusTextView: TextView
@@ -50,24 +54,77 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_anki_droid_config)
         
+        // Apply insets to the root view
+        applyInsetsToView(android.R.id.content)
+        
         // Enable up navigation
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
+        // Initialize ProfileViewModel
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
+        
+        // Initialize AnkiDroidHelper
         ankiDroidHelper = AnkiDroidHelper(this)
         
         // Initialize UI components
         initializeViews()
         
-        // Check if AnkiDroid is available
-        checkAnkiDroidAvailability()
+        // Observe current profile
+        profileViewModel.currentProfile.observe(this) { profile ->
+            if (profile != null) {
+                Log.d("AnkiDroidConfig", "Received profile: ${profile.name} (ID: ${profile.id}), AnkiDroid deck ID: ${profile.ankiDeckId}, model ID: ${profile.ankiModelId}")
+                ankiDroidHelper.setActiveProfile(profile)
+                
+                // Update title to include profile name
+                supportActionBar?.title = getString(R.string.anki_config_title) + " - " + profile.name
+                
+                // Reload the AnkiDroid configuration
+                checkAnkiDroidAvailability()
+            } else {
+                Log.w("AnkiDroidConfig", "Received null profile")
+            }
+        }
+        
+        // Load profile - this will trigger the observer above
+        profileViewModel.loadCurrentProfile()
+    }
+    
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        menuInflater.inflate(R.menu.anki_config_menu, menu)
+        return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            finish()
-            return true
+        return when (item.itemId) {
+            android.R.id.home -> {
+                finish()
+                true
+            }
+            R.id.action_reset_anki_config -> {
+                showResetConfirmationDialog()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
+    }
+    
+    private fun showResetConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.reset_anki_config)
+            .setMessage(R.string.reset_anki_config_confirm)
+            .setPositiveButton(R.string.ok) { dialog: android.content.DialogInterface, which: Int ->
+                // Clear configuration
+                ankiDroidHelper.clearConfiguration()
+                
+                // Reset UI to default state
+                setupDeckSpinner()
+                setupModelSpinner()
+                
+                // Notify user
+                Toast.makeText(this, R.string.reset_anki_config_done, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
     
     private fun initializeViews() {
@@ -352,7 +409,7 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
             return
         }
         
-        // Save configuration
+        // Save configuration to AnkiDroidHelper
         ankiDroidHelper.saveConfiguration(
             selectedDeckId,
             selectedModelId,
@@ -365,6 +422,30 @@ class AnkiDroidConfigActivity : AppCompatActivity() {
             translationField,
             audioField
         )
+        
+        // Save configuration to current profile
+        val currentProfile = profileViewModel.currentProfile.value
+        if (currentProfile != null) {
+            val updatedProfile = currentProfile.copy(
+                ankiDeckId = selectedDeckId,
+                ankiModelId = selectedModelId,
+                ankiFieldWord = wordField,
+                ankiFieldReading = readingField,
+                ankiFieldDefinition = definitionField,
+                ankiFieldScreenshot = screenshotField,
+                ankiFieldContext = contextField,
+                ankiFieldPartOfSpeech = partOfSpeechField,
+                ankiFieldTranslation = translationField,
+                ankiFieldAudio = audioField
+            )
+            
+            // Update the profile in the database
+            profileViewModel.updateProfile(updatedProfile)
+            
+            Log.d("AnkiDroidConfigActivity", "Saved AnkiDroid configuration to profile: ${updatedProfile.name} (ID: ${updatedProfile.id})")
+        } else {
+            Log.w("AnkiDroidConfigActivity", "No active profile found - configuration saved to legacy preferences only")
+        }
         
         Toast.makeText(this, getString(R.string.config_saved), Toast.LENGTH_SHORT).show()
     }

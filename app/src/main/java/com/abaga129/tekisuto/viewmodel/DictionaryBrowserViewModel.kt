@@ -7,11 +7,13 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.util.ProfileSettingsManager
 import kotlinx.coroutines.launch
 
 class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(application) {
     
     private lateinit var repository: DictionaryRepository
+    private val profileSettingsManager = ProfileSettingsManager(application)
     
     // Search query text
     private val _searchQuery = MutableLiveData<String>()
@@ -43,10 +45,21 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
     private fun loadDictionaryStats() {
         viewModelScope.launch {
             try {
-                val count = repository.getDictionaryEntryCount()
+                // Get the active profile ID
+                val profileId = profileSettingsManager.getCurrentProfileId()
+                
+                // Get entry count for the active profile's dictionaries
+                val count = if (profileId > 0) {
+                    // Get count of entries from dictionaries assigned to the active profile
+                    val dictionaries = repository.getDictionariesForProfile(profileId)
+                    dictionaries.sumOf { repository.getDictionaryEntryCount(it.id) }
+                } else {
+                    // Fallback to all dictionaries if no profile selected
+                    repository.getDictionaryEntryCount()
+                }
                 _entryCount.value = count
             } catch (e: Exception) {
-                // Log error but don't crash
+                android.util.Log.e("DictionaryViewModel", "Error loading dictionary stats", e)
             }
         }
     }
@@ -90,14 +103,18 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                android.util.Log.d("DictionaryViewModel", "Searching for: '$query'")
+                // Get the active profile ID
+                val profileId = profileSettingsManager.getCurrentProfileId()
+                
+                android.util.Log.d("DictionaryViewModel", "Searching for: '$query' with profileId: $profileId")
+                
                 // Use fast search for interactive typing, switch to priority-based for the final result
                 val results = if (query.length <= 3) {
                     // Use fast search for short queries during typing
-                    repository.searchDictionary(query, fastSearch = true)
+                    repository.searchDictionary(query, profileId, fastSearch = true)
                 } else {
                     // Use prioritized search for longer, likely final queries
-                    repository.searchDictionary(query, fastSearch = false)
+                    repository.searchDictionary(query, profileId, fastSearch = false)
                 }
                 _entries.value = results
                 android.util.Log.d("DictionaryViewModel", "Search returned ${results.size} results")
@@ -125,9 +142,26 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val results = repository.getRecentEntries(limit)
+                // Get the active profile ID
+                val profileId = profileSettingsManager.getCurrentProfileId()
+                
+                // Only show entries from dictionaries assigned to the active profile
+                val results = if (profileId > 0) {
+                    // Get entries from dictionaries in the active profile
+                    val profileDictionaries = repository.getDictionariesForProfile(profileId)
+                    if (profileDictionaries.isNotEmpty()) {
+                        val dictionaryIds = profileDictionaries.map { it.id }
+                        repository.getRecentEntriesFromDictionaries(limit, dictionaryIds)
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    // Fallback to all dictionaries if no profile selected
+                    repository.getRecentEntries(limit)
+                }
+                
                 _entries.value = results
-                android.util.Log.d("DictionaryViewModel", "Loaded ${results.size} entries")
+                android.util.Log.d("DictionaryViewModel", "Loaded ${results.size} entries for profileId: $profileId")
                 
                 // Log a few entries for debugging
                 results.take(3).forEachIndexed { index, entry ->

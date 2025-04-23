@@ -44,4 +44,7 @@
     
     <!-- Frequency indicator -->
     <color name="frequency_color">#FF9800</color>         <!-- Orange for frequency data -->
+    
+    <!-- Voice selection dialog -->
+    <color name="headerBackground">#F0F4F7</color>        <!-- Light blue-gray for headers -->
 </resources>

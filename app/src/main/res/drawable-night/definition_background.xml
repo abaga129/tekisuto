@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#2A3C44" /> <!-- Darker background for night mode -->
+    <solid android:color="#1F1F1F" /> <!-- Slightly lighter than the card_background for contrast -->
     <corners android:radius="8dp" />
     <stroke
         android:width="1dp"
-        android:color="#6A7AAAC0" /> <!-- 40% primary_light color for better visibility -->
+        android:color="#3A7AAAC0" /> <!-- Primary light color with 23% opacity -->
     <padding
         android:bottom="8dp"
         android:left="8dp"

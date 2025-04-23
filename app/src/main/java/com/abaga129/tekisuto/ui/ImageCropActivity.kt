@@ -8,9 +8,9 @@ import android.os.Bundle
 import android.os.Environment
 import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.util.OcrHelper
+import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.yalantis.ucrop.UCrop
 import java.io.File
 import java.io.FileOutputStream
@@ -19,15 +19,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class ImageCropActivity : AppCompatActivity() {
+class ImageCropActivity : BaseEdgeToEdgeActivity() {
 
     private lateinit var ocrHelper: OcrHelper
     private var screenshotPath: String? = null
     private val TAG = "ImageCropActivity"
+    private var profileId: Long = -1L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_crop)
+
+        // Apply insets to the root view
+        applyInsetsToView(android.R.id.content)
 
         Log.d(TAG, "ImageCropActivity onCreate called")
         ocrHelper = OcrHelper(this)
@@ -35,6 +39,10 @@ class ImageCropActivity : AppCompatActivity() {
         // Get the screenshot path from the intent
         screenshotPath = intent.getStringExtra("SCREENSHOT_PATH")
         Log.d(TAG, "Screenshot path from intent: $screenshotPath")
+        
+        // Get the profile ID from the intent (default to -1 if not provided)
+        profileId = intent.getLongExtra("PROFILE_ID", -1L)
+        Log.d(TAG, "Profile ID from intent: $profileId")
         
         if (screenshotPath.isNullOrEmpty()) {
             Log.e(TAG, "No screenshot path provided")
@@ -170,21 +178,48 @@ class ImageCropActivity : AppCompatActivity() {
     }
 
     private fun performOcrAndShowResults(bitmap: Bitmap, file: File) {
-        ocrHelper.recognizeText(bitmap) { text ->
-            runOnUiThread {
-                // Get current OCR language from preferences
-                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-                val ocrLanguage = prefs.getString("ocr_language", "latin") ?: "latin"
-                
-                // Launch result activity with recognized text
-                val intent = Intent(this, OCRResultActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("OCR_TEXT", text)
-                    putExtra("SCREENSHOT_PATH", file.absolutePath)
-                    putExtra("OCR_LANGUAGE", ocrLanguage)
+        // Use profile-specific OCR settings if a profile ID was provided
+        if (profileId != -1L) {
+            Log.d(TAG, "Using profile-specific OCR settings with profile ID: $profileId")
+            
+            ocrHelper.recognizeText(bitmap, profileId) { text ->
+                runOnUiThread {
+                    // Get current OCR language from preferences (will be set by the profile)
+                    val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                    val ocrLanguage = prefs.getString("ocr_language", "latin") ?: "latin"
+                    
+                    // Launch result activity with recognized text
+                    val intent = Intent(this, OCRResultActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("OCR_TEXT", text)
+                        putExtra("SCREENSHOT_PATH", file.absolutePath)
+                        putExtra("OCR_LANGUAGE", ocrLanguage)
+                        putExtra("PROFILE_ID", profileId)  // Pass the profile ID to the result activity
+                    }
+                    startActivity(intent)
+                    finish() // Close this activity
                 }
-                startActivity(intent)
-                finish() // Close this activity
+            }
+        } else {
+            // Use default OCR settings (no specific profile)
+            Log.d(TAG, "Using default OCR settings (no specific profile)")
+            
+            ocrHelper.recognizeText(bitmap) { text ->
+                runOnUiThread {
+                    // Get current OCR language from preferences
+                    val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                    val ocrLanguage = prefs.getString("ocr_language", "latin") ?: "latin"
+                    
+                    // Launch result activity with recognized text
+                    val intent = Intent(this, OCRResultActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("OCR_TEXT", text)
+                        putExtra("SCREENSHOT_PATH", file.absolutePath)
+                        putExtra("OCR_LANGUAGE", ocrLanguage)
+                    }
+                    startActivity(intent)
+                    finish() // Close this activity
+                }
             }
         }
     }

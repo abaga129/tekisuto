@@ -6,13 +6,15 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for langu
 
 ## Features
 
-- **OCR Text Extraction**: Capture text from any app using the accessibility service
+- **OCR Text Extraction**: Capture text from any app that doesn't block screenshots
 - **Dictionary Lookup**: Support for Yomitan/Yomichan format dictionaries
+- **Multiple Profiles**: Configure different settings for various languages or learning setups
+- **App Whitelist**: Automatically activate Tekisuto when opening specific apps
+- **AnkiDroid Integration**: Export dictionary matches directly to AnkiDroid as flashcards
 - **Smart Search Results**: Exact matches are prioritized at the top of search results
 - **Visual Dictionary Management**: Dictionary entries show which words have been exported to Anki
 - **Text Area Selection**: Precisely crop the area containing text you want to scan
 - **Multi-language Support**: Works with Latin, Chinese, Japanese, Korean, Devanagari and other scripts
-- **AnkiDroid Integration**: Export dictionary matches directly to AnkiDroid as flashcards
 - **Anki Deck Import**: Import words from Anki packages (.apkg files) to track already studied vocabulary
 - **Privacy-focused**: All processing happens on-device with no cloud services required
 
@@ -25,6 +27,29 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for langu
 5. Export results to AnkiDroid or save for later reference
 
 For detailed instructions, see the [Tekisuto User Guide](wiki.md).
+
+## Profile Management
+
+Create multiple profiles for different language learning contexts:
+- Configure separate dictionary sets for each language
+- Set custom OCR parameters optimized for different scripts
+- Maintain separate AnkiDroid export configurations
+- Quickly switch between configurations with a single tap
+
+## App Whitelist
+
+Make language learning seamless by automatically activating Tekisuto in your preferred apps:
+- Automatic OCR button display when opening whitelisted apps
+- No need to manually enable the service for each session
+- Perfect for e-readers, browsers, and learning apps
+
+## AnkiDroid Integration
+
+Streamline your flashcard creation workflow:
+- Export dictionary entries directly to AnkiDroid
+- Customize field mappings for your note types
+- Import existing Anki decks to track words you've already studied
+- Visual indicators show which words are already in your decks
 
 ## Requirements
 

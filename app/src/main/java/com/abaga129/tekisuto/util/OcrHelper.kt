@@ -13,50 +13,103 @@ import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.abaga129.tekisuto.util.ProfileSettingsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.room.Room
+import com.abaga129.tekisuto.database.AppDatabase
+import com.abaga129.tekisuto.database.ProfileEntity
+import kotlin.coroutines.CoroutineContext
 
 private const val TAG = "OcrHelper"
 
 /**
  * Helper class to handle OCR operations using ML Kit
  */
-class OcrHelper(private val context: Context) {
+class OcrHelper(private val context: Context) : CoroutineScope {
+    
+    private val job = kotlinx.coroutines.SupervisorJob()
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Main + job
 
     private var textRecognizer: TextRecognizer
+    private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+    private val profileSettingsManager = ProfileSettingsManager(context)
+    private var lastProfileId: Long = -1
     
     init {
-        // Get the preferred language from SharedPreferences
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-        val language = sharedPreferences.getString("ocr_language", "latin") ?: "latin"
+        // Get the preferred language from SharedPreferences (will be updated by profile settings)
+        val language = prefs.getString("ocr_language", "latin") ?: "latin"
         
         // Create the appropriate text recognizer based on the language preference
-        textRecognizer = when (language) {
+        textRecognizer = createRecognizerForLanguage(language)
+        
+        Log.d(TAG, "Initialized OCR with language: $language")
+        
+        // Store current profile ID for change detection
+        lastProfileId = profileSettingsManager.getCurrentProfileId()
+    }
+    
+    /**
+     * Create a text recognizer for the specified language
+     */
+    private fun createRecognizerForLanguage(language: String): TextRecognizer {
+        return when (language) {
             "chinese" -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
             "devanagari" -> TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
             "japanese" -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
             "korean" -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
             else -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         }
-        
-        Log.d(TAG, "Initialized OCR with language: $language")
     }
 
     /**
      * Recognize text from a bitmap image
      *
      * @param bitmap The bitmap image to analyze
+     * @param profileId Optional profile ID to use for specific recognition
      * @param callback Callback function with the recognized text
      */
-    fun recognizeText(bitmap: Bitmap, callback: (String) -> Unit) {
-        // Check if the language preference has changed and update recognizer if needed
-        refreshRecognizerIfNeeded()
-        
+    fun recognizeText(bitmap: Bitmap, profileId: Long = -1L, callback: (String) -> Unit) {
+        // If a specific profile ID is provided and it's different from last used, update settings
+        if (profileId != -1L && profileId != lastProfileId) {
+            launch {
+                refreshRecognizerForProfile(profileId)
+                processImage(bitmap, callback)
+            }
+        } else {
+            // Check if the language preference has changed for current profile
+            refreshRecognizerIfNeeded()
+            processImage(bitmap, callback)
+        }
+    }
+    
+    /**
+     * Process the image with the current recognizer
+     */
+    private fun processImage(bitmap: Bitmap, callback: (String) -> Unit) {
         val image = InputImage.fromBitmap(bitmap, 0)
 
         textRecognizer.process(image)
             .addOnSuccessListener { text ->
                 val recognizedText = buildRecognizedText(text)
                 Log.d(TAG, "Text recognition successful: ${text.textBlocks.size} blocks found")
-                callback(recognizedText)
+                
+                // Check if translation is needed
+                val shouldTranslate = prefs.getBoolean("translate_ocr_text", false)
+                if (shouldTranslate) {
+                    // In a real implementation, you'd call a translation service here
+                    // For this example, just log the fact that translation would be applied
+                    val targetLanguage = prefs.getString("translate_target_language", "en") ?: "en"
+                    Log.d(TAG, "Translation requested to language: $targetLanguage")
+                    
+                    // Here you would call a translation service, but for now just return the original text
+                    callback(recognizedText)
+                } else {
+                    callback(recognizedText)
+                }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Error during text recognition", e)
@@ -65,22 +118,53 @@ class OcrHelper(private val context: Context) {
     }
     
     /**
+     * Refresh the text recognizer for a specific profile
+     */
+    private suspend fun refreshRecognizerForProfile(profileId: Long) {
+        try {
+            // Load profile from database
+            val database = Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                "tekisuto_dictionary${com.abaga129.tekisuto.BuildConfig.DB_NAME_SUFFIX}.db"
+            ).build()
+            
+            val profile = withContext(Dispatchers.IO) {
+                database.profileDao().getProfileById(profileId)
+            }
+            
+            if (profile != null) {
+                // Apply profile settings
+                profileSettingsManager.loadProfileSettings(profile)
+                lastProfileId = profileId
+                
+                // Update recognizer based on profile's language setting
+                val language = prefs.getString("ocr_language", "latin") ?: "latin"
+                textRecognizer = createRecognizerForLanguage(language)
+                Log.d(TAG, "Updated OCR for profile: ${profile.name}, language: $language")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error refreshing recognizer for profile", e)
+        }
+    }
+    
+    /**
      * Refresh the text recognizer if the language preference has changed
      */
     private fun refreshRecognizerIfNeeded() {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-        val currentLanguage = sharedPreferences.getString("ocr_language", "latin") ?: "latin"
+        val currentProfileId = profileSettingsManager.getCurrentProfileId()
         
-        // Create a new recognizer if needed
-        val newRecognizer = when (currentLanguage) {
-            "chinese" -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-            "devanagari" -> TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
-            "japanese" -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
-            "korean" -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
-            else -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        // Check if profile has changed
+        if (currentProfileId != lastProfileId) {
+            launch {
+                refreshRecognizerForProfile(currentProfileId)
+            }
+            return
         }
         
-        textRecognizer = newRecognizer
+        // Check if language has changed
+        val currentLanguage = prefs.getString("ocr_language", "latin") ?: "latin"
+        textRecognizer = createRecognizerForLanguage(currentLanguage)
         Log.d(TAG, "Using OCR with language: $currentLanguage")
     }
 
@@ -120,8 +204,7 @@ class OcrHelper(private val context: Context) {
      */
     private fun isLikelyVerticalJapanese(text: Text): Boolean {
         // If not Japanese language, return false immediately
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-        val language = sharedPreferences.getString("ocr_language", "latin") ?: "latin"
+        val language = prefs.getString("ocr_language", "latin") ?: "latin"
         if (language != "japanese") {
             return false
         }
@@ -250,5 +333,12 @@ class OcrHelper(private val context: Context) {
         return text.split(Regex("[\\s,.。、!?]+"))
             .filter { it.isNotEmpty() }
             .distinct()
+    }
+    
+    /**
+     * Clean up resources
+     */
+    fun cleanup() {
+        job.cancel()
     }
 }

@@ -1,14 +1,17 @@
 package com.abaga129.tekisuto.ui.dictionary
 
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import com.abaga129.tekisuto.R
+import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 
-class DictionaryBrowserActivity : AppCompatActivity() {
+class DictionaryBrowserActivity : BaseEdgeToEdgeActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dictionary_browser)
+        
+        // Apply insets to the root view
+        applyInsetsToView(android.R.id.content)
         
         // Set up back button in action bar
         supportActionBar?.apply {

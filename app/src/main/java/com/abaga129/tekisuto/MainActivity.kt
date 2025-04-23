@@ -3,6 +3,8 @@ package com.abaga129.tekisuto
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
@@ -11,35 +13,44 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.service.AccessibilityOcrService
+import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
+import com.abaga129.tekisuto.ui.profile.ProfileManagerActivity
 import com.abaga129.tekisuto.ui.settings.SettingsActivity
 import com.abaga129.tekisuto.viewmodel.DictionaryInfo
 import com.abaga129.tekisuto.viewmodel.MainViewModel
+import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseEdgeToEdgeActivity() {
 
     private lateinit var viewModel: MainViewModel
+    private lateinit var profileViewModel: ProfileViewModel
     private lateinit var statusTextView: TextView
     private lateinit var settingsButton: Button
     private lateinit var manageDictionariesButton: Button
     private lateinit var browseDictionaryButton: Button
     private lateinit var ocrSettingsButton: Button
     private lateinit var configureAnkiButton: Button
+    private lateinit var manageProfilesButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var dictionaryInfoTextView: TextView
+    private lateinit var currentProfileTextView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        super.onCreate(savedInstanceState) // This calls enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+        
+        // Apply insets to the root view to avoid status bar overlap
+        applyInsetsToView(android.R.id.content)
 
-        // Initialize ViewModel
+        // Initialize ViewModels
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
 
         // Initialize repository from application
         val repository = DictionaryRepository(applicationContext)
@@ -52,8 +63,10 @@ class MainActivity : AppCompatActivity() {
         browseDictionaryButton = findViewById(R.id.browse_dictionary_button)
         ocrSettingsButton = findViewById(R.id.ocr_settings_button)
         configureAnkiButton = findViewById(R.id.configure_anki_button)
+        manageProfilesButton = findViewById(R.id.manage_profiles_button)
         progressBar = findViewById(R.id.import_progress_bar)
         dictionaryInfoTextView = findViewById(R.id.dictionary_info_text_view)
+        currentProfileTextView = findViewById(R.id.current_profile_text)
 
         // Hide progress bar initially
         progressBar.visibility = View.GONE
@@ -82,6 +95,11 @@ class MainActivity : AppCompatActivity() {
         configureAnkiButton.setOnClickListener {
             openAnkiConfig()
         }
+        
+        // Set click listener for the Manage Profiles button
+        manageProfilesButton.setOnClickListener {
+            openProfileManager()
+        }
 
         // Observe accessibility service status
         viewModel.isAccessibilityServiceEnabled.observe(this) { isEnabled ->
@@ -97,6 +115,16 @@ class MainActivity : AppCompatActivity() {
         viewModel.dictionaryInfo.observe(this) { info ->
             updateDictionaryInfo(info)
         }
+        
+        // Observe current profile
+        profileViewModel.currentProfile.observe(this) { profile ->
+            if (profile != null) {
+                currentProfileTextView.text = getString(R.string.current_profile, profile.name)
+                currentProfileTextView.visibility = View.VISIBLE
+            } else {
+                currentProfileTextView.visibility = View.GONE
+            }
+        }
 
         // Check for existing dictionary on startup
         lifecycleScope.launch {
@@ -108,6 +136,9 @@ class MainActivity : AppCompatActivity() {
                 dictionaryInfoTextView.visibility = View.GONE
             }
         }
+        
+        // Load profiles
+        profileViewModel.loadProfiles()
     }
 
     override fun onResume() {
@@ -117,6 +148,19 @@ class MainActivity : AppCompatActivity() {
         
         // Also start a periodic check to update the status continuously
         startPeriodicServiceCheck()
+        
+        // Refresh current profile
+        profileViewModel.loadCurrentProfile()
+        
+        // Add a delay to ensure the service status is properly checked
+        Handler(Looper.getMainLooper()).postDelayed({
+            // Show the floating button if the service is enabled
+            if (viewModel.isAccessibilityServiceEnabled.value == true) {
+                // Call the service to show the floating button
+                showFloatingButtonIfHidden()
+                android.util.Log.d("MainActivity", "Attempting to show floating button after delay")
+            }
+        }, 1000) // 1 second delay
     }
     
     private val serviceCheckHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -200,7 +244,11 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity::class.java)
         startActivity(intent)
     }
-
+    
+    private fun openProfileManager() {
+        val intent = Intent(this, ProfileManagerActivity::class.java)
+        startActivity(intent)
+    }
 
     private fun updateImportProgress(progress: Int) {
         when {
@@ -238,6 +286,34 @@ class MainActivity : AppCompatActivity() {
             dictionaryInfoTextView.visibility = View.VISIBLE
         } else {
             dictionaryInfoTextView.visibility = View.GONE
+        }
+    }
+    
+    /**
+     * Shows the floating button if it was previously hidden and the service is running
+     */
+    private fun showFloatingButtonIfHidden() {
+        try {
+            val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+            
+            // Set the preference to show the button
+            prefs.edit().putBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true).apply()
+            
+            // First try to use the direct service instance
+            val serviceInstance = com.abaga129.tekisuto.service.AccessibilityOcrService.getInstance()
+            if (serviceInstance != null) {
+                android.util.Log.d("MainActivity", "Using direct service instance to show floating button")
+                serviceInstance.showFloatingButton()
+            } else {
+                // Fallback to broadcasting
+                android.util.Log.d("MainActivity", "Service instance not available, using broadcast")
+                val intent = Intent(com.abaga129.tekisuto.service.AccessibilityOcrService.ACTION_SHOW_FLOATING_BUTTON)
+                intent.setPackage(packageName) // Make it an explicit intent
+                sendBroadcast(intent)
+                android.util.Log.d("MainActivity", "Sent broadcast to show floating button")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error showing floating button", e)
         }
     }
 }

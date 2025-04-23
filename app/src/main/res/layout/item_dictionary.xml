@@ -6,7 +6,8 @@
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
     app:cardCornerRadius="8dp"
-    app:cardElevation="2dp">
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="?attr/colorSurface">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -22,6 +23,7 @@
             android:maxLines="1"
             android:textSize="18sp"
             android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface"
             app:layout_constraintEnd_toStartOf="@id/dictionary_priority"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -34,12 +36,23 @@
             android:layout_marginTop="4dp"
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
-            android:maxLines="2"
+            android:maxLines="3"
             android:textSize="14sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
             app:layout_constraintEnd_toStartOf="@id/btn_up"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/dictionary_title"
-            tools:text="Author: Some Author\nEntries: 50,000" />
+            tools:text="Author: Some Author\nEntries: 50,000\nLanguages: JA -> EN" />
+
+        <CheckBox
+            android:id="@+id/profile_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/use_in_profile"
+            android:visibility="gone"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/dictionary_info" />
 
         <TextView
             android:id="@+id/dictionary_priority"
@@ -49,6 +62,7 @@
             android:padding="4dp"
             android:textSize="14sp"
             android:textStyle="bold"
+            android:textColor="?attr/colorOnSecondaryContainer"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="Priority: 1" />

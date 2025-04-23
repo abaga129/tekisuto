@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.abaga129.tekisuto.util.TranslationHelper
 import kotlinx.coroutines.launch
 import java.io.File
@@ -55,6 +56,7 @@ class OCRResultViewModel : ViewModel() {
     
     private var dictionaryRepository: DictionaryRepository? = null
     private var translationHelper: TranslationHelper? = null
+    private var profileSettingsManager: ProfileSettingsManager? = null
 
     fun setOcrText(text: String, ocrLanguage: String? = null) {
         _ocrText.value = text
@@ -75,11 +77,21 @@ class OCRResultViewModel : ViewModel() {
         if (dictionaryRepository == null) {
             dictionaryRepository = DictionaryRepository(context)
         }
+        
+        if (profileSettingsManager == null) {
+            profileSettingsManager = ProfileSettingsManager(context)
+        }
     }
     
     fun initTranslationHelper(context: Context) {
         if (translationHelper == null) {
             translationHelper = TranslationHelper(context)
+        }
+    }
+    
+    fun initProfileSettingsManager(context: Context) {
+        if (profileSettingsManager == null) {
+            profileSettingsManager = ProfileSettingsManager(context)
         }
     }
     
@@ -160,6 +172,13 @@ class OCRResultViewModel : ViewModel() {
     }
     
     /**
+     * Get the active profile ID
+     */
+    private fun getActiveProfileId(): Long {
+        return profileSettingsManager?.getCurrentProfileId() ?: -1L
+    }
+    
+    /**
      * Search for dictionary matches in the OCR text
      * @param selectedText Optional text to search for. If null, uses the full OCR text.
      */
@@ -186,10 +205,13 @@ class OCRResultViewModel : ViewModel() {
                 
                 Log.d(TAG, "Word extraction took ${System.currentTimeMillis() - startTime}ms for ${rawWords.size} words")
                 
+                // Get active profile ID
+                val activeProfileId = getActiveProfileId()
+                
                 // PHASE 1: Fast bulk exact match search
                 val bulkSearchTime = System.currentTimeMillis()
-                val exactMatches = repository.bulkSearchByExactTerms(rawWords)
-                Log.d(TAG, "Bulk search took ${System.currentTimeMillis() - bulkSearchTime}ms, found ${exactMatches.size} matches")
+                val exactMatches = repository.bulkSearchByExactTerms(rawWords, activeProfileId)
+                Log.d(TAG, "Bulk search took ${System.currentTimeMillis() - bulkSearchTime}ms, found ${exactMatches.size} matches for profile $activeProfileId")
                 
                 // If we found enough matches via exact search, use those
                 if (exactMatches.size >= 3) {
@@ -224,8 +246,8 @@ class OCRResultViewModel : ViewModel() {
                     // Skip if already processed
                     if (processedTerms.contains(word)) continue
                     
-                    // Use fast search to find matches quickly
-                    val fuzzyResults = repository.searchDictionary("%$word%", fastSearch = true)
+                    // Use fast search to find matches quickly, using the active profile ID
+                    val fuzzyResults = repository.searchDictionary("%$word%", activeProfileId, fastSearch = true)
                     
                     // Take just the first match for each term
                     if (fuzzyResults.isNotEmpty()) {
@@ -245,37 +267,61 @@ class OCRResultViewModel : ViewModel() {
                     .take(10) // Limit to top 10 matches
                 
                 Log.d(TAG, "Total search took ${System.currentTimeMillis() - startTime}ms, found ${sortedMatches.size} matches")
+                
+                // Update the LiveData with our matches
                 _dictionaryMatches.postValue(sortedMatches)
             } catch (e: Exception) {
                 Log.e(TAG, "Error searching dictionary", e)
+                _dictionaryMatches.postValue(emptyList())
             } finally {
                 _isSearching.postValue(false)
             }
         }
     }
     
-    // We've inlined the word extraction for better performance
-
     /**
-     * Save OCR text to a file in external storage
+     * Saves the OCR text to a file in the specified directory
+     * @param parentDir The directory to save to
+     * @param includeTranslation Whether to include translation in the saved file
+     * @return The path to the saved file
      */
-    fun saveOcrTextToFile(context: Context) {
-        val text = _ocrText.value ?: return
-
-        try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "OCR_Text_$timeStamp.txt"
-            val storageDir = context.getExternalFilesDir(null)
-            val file = File(storageDir, fileName)
-
+    fun saveOcrTextToFile(parentDir: File, includeTranslation: Boolean = false): String {
+        if (!parentDir.exists() && !parentDir.mkdirs()) {
+            _saveResult.value = "Failed to create directory"
+            return ""
+        }
+        
+        val text = _ocrText.value ?: ""
+        if (text.isBlank()) {
+            _saveResult.value = "No text to save"
+            return ""
+        }
+        
+        // Generate filename based on date/time
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val filename = "tekisuto_ocr_$timestamp.txt"
+        val file = File(parentDir, filename)
+        
+        return try {
             FileWriter(file).use { writer ->
                 writer.write(text)
+                
+                // Add translation if enabled and available
+                if (includeTranslation) {
+                    val translatedText = _translatedText.value
+                    if (!translatedText.isNullOrBlank()) {
+                        writer.write("\n\n--- Translation ---\n\n")
+                        writer.write(translatedText)
+                    }
+                }
             }
-
-            _saveResult.value = "Text saved to ${file.absolutePath}"
+            
+            _saveResult.value = "Saved to ${file.name}"
+            file.absolutePath
         } catch (e: IOException) {
-            e.printStackTrace()
-            _saveResult.value = "Failed to save text: ${e.message}"
+            Log.e(TAG, "Error saving OCR text to file", e)
+            _saveResult.value = "Failed to save: ${e.message}"
+            ""
         }
     }
 }

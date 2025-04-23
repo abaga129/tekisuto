@@ -116,6 +116,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/ocr_settings_button" />
+        
+    <Button
+        android:id="@+id/manage_profiles_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/manage_profiles"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/configure_anki_button" />
 
     <ProgressBar
         android:id="@+id/import_progress_bar"
@@ -128,7 +138,19 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/configure_anki_button" />
+        app:layout_constraintTop_toBottomOf="@+id/manage_profiles_button" />
+
+    <TextView
+        android:id="@+id/current_profile_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textStyle="italic"
+        android:visibility="visible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/import_progress_bar"
+        tools:text="Current Profile: Default" />
 
     <TextView
         android:id="@+id/dictionary_info_text_view"
@@ -142,7 +164,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/import_progress_bar" />
+        app:layout_constraintTop_toBottomOf="@+id/current_profile_text" />
 
     <TextView
         android:id="@+id/usage_text_view"

@@ -8,7 +8,9 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import androidx.preference.PreferenceManager
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.database.ProfileEntity
 import com.ichi2.anki.api.AddContentApi
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.GlobalScope
@@ -19,12 +21,16 @@ import kotlinx.coroutines.launch
  */
 class AnkiDroidHelper(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(ANKI_PREFS, Context.MODE_PRIVATE)
+    private val defaultPrefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
     private val api = AddContentApi(context)
     private val dictionaryRepository = DictionaryRepository.getInstance(context)
+    private var activeProfile: ProfileEntity? = null
 
     companion object {
         private const val TAG = "AnkiDroidHelper"
         const val ANKI_PREFS = "anki_prefs"
+        
+        // Legacy preference keys (kept for backward compatibility)
         const val PREF_DECK_ID = "deck_id"
         const val PREF_MODEL_ID = "model_id"
         const val PREF_FIELD_WORD = "field_word"
@@ -36,6 +42,16 @@ class AnkiDroidHelper(private val context: Context) {
         const val PREF_FIELD_TRANSLATION = "field_translation"
         const val PREF_FIELD_AUDIO = "field_audio"
         const val DEFAULT_FIELD_VALUE = "0"
+        
+        // Profile settings key in default shared preferences
+        const val CURRENT_PROFILE_ID = "current_profile_id"
+    }
+    
+    /**
+     * Set the active profile for AnkiDroid configuration
+     */
+    fun setActiveProfile(profile: ProfileEntity) {
+        activeProfile = profile
     }
 
     /**
@@ -87,7 +103,7 @@ class AnkiDroidHelper(private val context: Context) {
     }
 
     /**
-     * Save AnkiDroid configuration
+     * Save AnkiDroid configuration to preferences and active profile
      */
     fun saveConfiguration(
         deckId: Long,
@@ -101,6 +117,7 @@ class AnkiDroidHelper(private val context: Context) {
         fieldTranslation: Int,
         fieldAudio: Int = -1 // Default to -1 (not set)
     ) {
+        // First save to legacy preferences (for backward compatibility)
         prefs.edit().apply {
             putLong(PREF_DECK_ID, deckId)
             putLong(PREF_MODEL_ID, modelId)
@@ -114,36 +131,75 @@ class AnkiDroidHelper(private val context: Context) {
             putInt(PREF_FIELD_AUDIO, fieldAudio)
             apply()
         }
+        
+        // Then save to active profile if available
+        val profile = activeProfile
+        if (profile != null) {
+            val updatedProfile = profile.copy(
+                ankiDeckId = deckId,
+                ankiModelId = modelId,
+                ankiFieldWord = fieldWord,
+                ankiFieldReading = fieldReading,
+                ankiFieldDefinition = fieldDefinition,
+                ankiFieldScreenshot = fieldScreenshot,
+                ankiFieldContext = fieldContext,
+                ankiFieldPartOfSpeech = fieldPartOfSpeech,
+                ankiFieldTranslation = fieldTranslation,
+                ankiFieldAudio = fieldAudio
+            )
+            
+            // This is not ideal as we're passing the profile back to the caller
+            // In a real-world scenario, we'd use a callback or a suspend function
+            // to save the profile to the database
+            activeProfile = updatedProfile
+            Log.d(TAG, "Saved AnkiDroid configuration to profile ${profile.name} (ID: ${profile.id})")
+        } else {
+            Log.d(TAG, "No active profile, saved AnkiDroid configuration to legacy preferences only")
+        }
     }
 
     /**
-     * Get saved deck ID
+     * Get saved deck ID from active profile or legacy preferences
      */
     fun getSavedDeckId(): Long {
-        return prefs.getLong(PREF_DECK_ID, 0)
+        return activeProfile?.ankiDeckId ?: prefs.getLong(PREF_DECK_ID, 0)
     }
 
     /**
-     * Get saved model ID
+     * Get saved model ID from active profile or legacy preferences
      */
     fun getSavedModelId(): Long {
-        return prefs.getLong(PREF_MODEL_ID, 0)
+        return activeProfile?.ankiModelId ?: prefs.getLong(PREF_MODEL_ID, 0)
     }
 
     /**
-     * Get saved field mappings
+     * Get saved field mappings from active profile or legacy preferences
      */
     fun getSavedFieldMappings(): FieldMappings {
-        return FieldMappings(
-            word = prefs.getInt(PREF_FIELD_WORD, 0),
-            reading = prefs.getInt(PREF_FIELD_READING, 0),
-            definition = prefs.getInt(PREF_FIELD_DEFINITION, 0),
-            screenshot = prefs.getInt(PREF_FIELD_SCREENSHOT, 0),
-            context = prefs.getInt(PREF_FIELD_CONTEXT, 0),
-            partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0),
-            translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0),
-            audio = prefs.getInt(PREF_FIELD_AUDIO, -1)
-        )
+        val profile = activeProfile
+        return if (profile != null) {
+            FieldMappings(
+                word = profile.ankiFieldWord,
+                reading = profile.ankiFieldReading,
+                definition = profile.ankiFieldDefinition,
+                screenshot = profile.ankiFieldScreenshot,
+                context = profile.ankiFieldContext,
+                partOfSpeech = profile.ankiFieldPartOfSpeech,
+                translation = profile.ankiFieldTranslation,
+                audio = profile.ankiFieldAudio
+            )
+        } else {
+            FieldMappings(
+                word = prefs.getInt(PREF_FIELD_WORD, 0),
+                reading = prefs.getInt(PREF_FIELD_READING, 0),
+                definition = prefs.getInt(PREF_FIELD_DEFINITION, 0),
+                screenshot = prefs.getInt(PREF_FIELD_SCREENSHOT, 0),
+                context = prefs.getInt(PREF_FIELD_CONTEXT, 0),
+                partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0),
+                translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0),
+                audio = prefs.getInt(PREF_FIELD_AUDIO, -1)
+            )
+        }
     }
 
     /**
@@ -474,6 +530,26 @@ class AnkiDroidHelper(private val context: Context) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         }
+    }
+    
+    /**
+     * Get the current profile ID from preferences
+     */
+    fun getCurrentProfileId(): Long {
+        return defaultPrefs.getLong(CURRENT_PROFILE_ID, -1L)
+    }
+    
+    /**
+     * Clear AnkiDroid configuration from preferences
+     * This is useful for troubleshooting and resetting the configuration
+     */
+    fun clearConfiguration() {
+        prefs.edit().apply {
+            clear()
+            apply()
+        }
+        
+        Log.d(TAG, "AnkiDroid configuration cleared from preferences")
     }
 }
 

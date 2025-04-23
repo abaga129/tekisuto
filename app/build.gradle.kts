@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 30 // Updated to API 30 (Android 11) for screenshot functionality
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7-alpha"
+        versionCode = 8
+        versionName = "0.8-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -109,6 +109,7 @@ dependencies {
     val room_version = "2.6.1"
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation("androidx.activity:activity-ktx:1.8.2") // For edge-to-edge support
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.lifecycle.livedata.ktx)
@@ -140,6 +141,15 @@ dependencies {
     
     // Azure AI Speech Service
     implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.32.1")
+    
+    // Gson for JSON serialization/deserialization
+    implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Emoji support
+    implementation("androidx.emoji2:emoji2:1.4.0")
+    implementation("androidx.emoji2:emoji2-views:1.4.0")
+    implementation("androidx.emoji2:emoji2-views-helper:1.4.0")
+    implementation("androidx.emoji2:emoji2-bundled:1.4.0")
     
     kapt("androidx.room:room-compiler:$room_version")  // This is crucial for Room
     testImplementation(libs.junit)

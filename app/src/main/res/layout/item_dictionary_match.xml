@@ -7,7 +7,7 @@
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
     app:cardCornerRadius="8dp"
-    app:cardBackgroundColor="@color/card_background"
+    app:cardBackgroundColor="?attr/colorSurface"
     app:cardElevation="2dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -15,25 +15,25 @@
         android:layout_height="wrap_content"
         android:padding="12dp">
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/term_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/text_dark"
+            android:textColor="?attr/colorOnSurface"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="単語" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/reading_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textSize="14sp"
             android:textStyle="italic"
-            android:textColor="@color/reading_text_color"
+            android:textColor="?attr/colorOnSurfaceVariant"
             app:layout_constraintBottom_toBottomOf="@+id/term_text"
             app:layout_constraintStart_toEndOf="@+id/term_text"
             app:layout_constraintTop_toTopOf="@+id/term_text"
@@ -62,14 +62,14 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@+id/term_text" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/part_of_speech_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textSize="12sp"
-            android:textColor="@color/part_of_speech_color"
-            android:background="@color/light_gray"
+            android:textColor="?attr/colorOnSecondaryContainer"
+            android:background="?attr/colorSecondaryContainer"
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
             android:paddingTop="2dp"
@@ -78,7 +78,7 @@
             app:layout_constraintTop_toBottomOf="@+id/term_text"
             tools:text="Noun" />
             
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/frequency_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -97,13 +97,13 @@
             tools:text="Freq: #123" 
             tools:visibility="visible" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/definition_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textSize="14sp"
-            android:textColor="@color/text_dark"
+            android:textColor="?attr/colorOnSurface"
             android:background="@drawable/definition_background"
             android:padding="8dp"
             android:textIsSelectable="true"

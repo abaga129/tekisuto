@@ -3,6 +3,34 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
+        android:title="Profile Settings"
+        app:iconSpaceReserved="false">
+        
+        <Preference
+            android:key="current_profile_info"
+            android:title="Current Profile"
+            android:summary="Current Profile: Default"
+            app:iconSpaceReserved="false" />
+            
+        <Preference
+            android:key="manage_profiles"
+            android:title="Manage Profiles"
+            android:summary="Create, edit, and switch between profiles"
+            app:iconSpaceReserved="false">
+            <intent
+                android:targetPackage="com.abaga129.tekisuto.debug"
+                android:targetClass="com.abaga129.tekisuto.ui.profile.ProfileManagerActivity" />
+        </Preference>
+        
+        <Preference
+            android:key="save_to_profile"
+            android:title="Save Settings to Profile"
+            android:summary="Save current settings to the active profile"
+            app:iconSpaceReserved="false" />
+    
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/ocr_settings_title"
         app:iconSpaceReserved="false">
 
@@ -88,6 +116,31 @@
             app:iconSpaceReserved="false"
             app:useSimpleSummaryProvider="true" />
             
+        <Preference
+            android:key="select_voice"
+            android:title="@string/select_voice_button"
+            android:summary="@string/voice_name_label"
+            android:dependency="enable_audio"
+            app:iconSpaceReserved="false" />
+            
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:title="App Whitelist Settings"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="enable_app_whitelist"
+            android:title="Enable App Whitelist"
+            android:summary="Only show floating button for selected apps"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+            
+        <Preference
+            android:key="app_whitelist"
+            android:title="Manage App Whitelist"
+            android:summary="Select apps for which the floating button should appear"
+            android:dependency="enable_app_whitelist"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
 </PreferenceScreen>
