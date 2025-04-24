@@ -37,6 +37,7 @@ class MainActivity : BaseEdgeToEdgeActivity() {
     private lateinit var ocrSettingsButton: Button
     private lateinit var configureAnkiButton: Button
     private lateinit var manageProfilesButton: Button
+    private lateinit var showFloatingButtonButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var dictionaryInfoTextView: TextView
     private lateinit var currentProfileTextView: TextView
@@ -64,6 +65,7 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         ocrSettingsButton = findViewById(R.id.ocr_settings_button)
         configureAnkiButton = findViewById(R.id.configure_anki_button)
         manageProfilesButton = findViewById(R.id.manage_profiles_button)
+        showFloatingButtonButton = findViewById(R.id.show_floating_button)
         progressBar = findViewById(R.id.import_progress_bar)
         dictionaryInfoTextView = findViewById(R.id.dictionary_info_text_view)
         currentProfileTextView = findViewById(R.id.current_profile_text)
@@ -100,10 +102,18 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         manageProfilesButton.setOnClickListener {
             openProfileManager()
         }
+        
+        // Set click listener for the Show Floating Button button
+        showFloatingButtonButton.setOnClickListener {
+            showFloatingButtonIfHidden()
+            Toast.makeText(this, "Floating button shown", Toast.LENGTH_SHORT).show()
+        }
 
         // Observe accessibility service status
         viewModel.isAccessibilityServiceEnabled.observe(this) { isEnabled ->
             updateStatusText(isEnabled)
+            // Update the Show Floating Button button state based on service status
+            showFloatingButtonButton.isEnabled = isEnabled
         }
 
         // Observe import progress
@@ -218,6 +228,9 @@ class MainActivity : BaseEdgeToEdgeActivity() {
             android.R.color.holo_red_dark
         }
         statusTextView.setTextColor(resources.getColor(colorRes, theme))
+        
+        // Update Show Floating Button button enabled state
+        showFloatingButtonButton.isEnabled = isEnabled
     }
 
     private fun openAccessibilitySettings() {

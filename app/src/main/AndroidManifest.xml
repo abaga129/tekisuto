@@ -58,18 +58,27 @@
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="com.abaga129.tekisuto.action.SHOW_FLOATING_BUTTON" />
-            </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+        
+        <!-- Explicitly register the broadcast receiver for Android 15+ -->
+        <receiver
+            android:name=".receiver.FloatingButtonReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.abaga129.tekisuto.action.SHOW_FLOATING_BUTTON" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".ui.OCRResultActivity"
             android:exported="false"
-            android:windowSoftInputMode="adjustPan" />
+            android:windowSoftInputMode="adjustPan"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" 
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="false" />
             
         <activity
             android:name=".ui.dictionary.DictionaryBrowserActivity"
@@ -83,7 +92,7 @@
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.NoActionBar"/>
+            android:theme="@style/Theme.CustomFullScreen"/>
             
         <activity
             android:name=".ui.anki.AnkiDroidConfigActivity"

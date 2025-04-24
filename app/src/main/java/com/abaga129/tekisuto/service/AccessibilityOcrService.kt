@@ -1,10 +1,8 @@
 package com.abaga129.tekisuto.service
 
 import android.accessibilityservice.AccessibilityService
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.res.Resources
 import android.graphics.Bitmap
@@ -63,6 +61,16 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             return instance
         }
     }
+    
+    // BroadcastReceiver to handle showing the floating button
+    private val showButtonReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == ACTION_SHOW_FLOATING_BUTTON) {
+                android.util.Log.d("AccessibilityOcrService", "Received broadcast to show floating button")
+                showFloatingButton()
+            }
+        }
+    }
 
     private lateinit var windowManager: WindowManager
     private lateinit var menuLayout: FrameLayout
@@ -71,16 +79,6 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
     private lateinit var ocrHelper: OcrHelper
     private lateinit var screenshotHelper: ScreenshotHelper
     private lateinit var prefs: SharedPreferences
-    
-    // Broadcast receiver for showing the floating button
-    private val floatingButtonReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == ACTION_SHOW_FLOATING_BUTTON) {
-                Log.d("AccessibilityOcrService", "Received broadcast to show floating button")
-                showFloatingButton()
-            }
-        }
-    }
     
     // Profile handling
     private lateinit var profileSettingsManager: ProfileSettingsManager
@@ -127,12 +125,16 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
         floatingButtonHandler = FloatingButtonHandler(this)
         floatingButtonHandler.setCallback(this)
         
-        // No need to initialize wasButtonManuallyHidden since we've removed it
-        
-        // Register the broadcast receiver for showing the floating button
-        val filter = IntentFilter(ACTION_SHOW_FLOATING_BUTTON)
-        registerReceiver(floatingButtonReceiver, filter)
+        // Register broadcast receiver for showing the floating button
+        val intentFilter = android.content.IntentFilter(ACTION_SHOW_FLOATING_BUTTON)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(showButtonReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(showButtonReceiver, intentFilter)
+        }
         Log.d("AccessibilityOcrService", "Registered broadcast receiver for showing floating button")
+        
+        Log.d("AccessibilityOcrService", "Service created")
     }
 
     override fun onServiceConnected() {
@@ -303,9 +305,9 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
         // Unregister preference change listener
         prefs.unregisterOnSharedPreferenceChangeListener(this)
         
-        // Unregister the broadcast receiver
+        // Unregister broadcast receiver
         try {
-            unregisterReceiver(floatingButtonReceiver)
+            unregisterReceiver(showButtonReceiver)
             Log.d("AccessibilityOcrService", "Unregistered broadcast receiver")
         } catch (e: Exception) {
             Log.e("AccessibilityOcrService", "Error unregistering receiver", e)

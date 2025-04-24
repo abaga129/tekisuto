@@ -3,14 +3,17 @@ package com.abaga129.tekisuto.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -40,6 +43,7 @@ import com.abaga129.tekisuto.database.AppDatabase
 /**
  * Activity that displays OCR results and provides dictionary lookup functionality.
  * This activity has been refactored to use separate manager classes for different responsibilities.
+ * The layout adapts to different screen sizes and orientations, with special handling for foldables.
  */
 class OCRResultActivity : BaseEdgeToEdgeActivity(),
     DictionaryMatchAdapter.OnAnkiExportListener,
@@ -51,10 +55,7 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
     // UI components
     private lateinit var screenshotImageView: ImageView
     private lateinit var textContainer: ViewGroup
-    private lateinit var copyButton: Button
-    private lateinit var saveButton: Button
     private lateinit var closeButton: Button
-    private lateinit var searchButton: Button
     private lateinit var dictionaryMatchesRecyclerView: RecyclerView
     private lateinit var loadingIndicator: ProgressBar
     private lateinit var noMatchesTextView: TextView
@@ -85,7 +86,7 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ocr_result)
 
-        // Apply insets to the root view
+        // Apply insets to the root view for edge-to-edge display
         applyInsetsToView(android.R.id.content)
 
         // Initialize service helpers
@@ -124,6 +125,12 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
         // Stop any playing audio
         audioManager.stopAudio()
     }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Handle configuration changes, particularly for foldables
+        adjustLayoutForScreenSize()
+    }
     
     /**
      * Initialize service helpers
@@ -141,16 +148,49 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
     private fun initializeViews() {
         screenshotImageView = findViewById(R.id.screenshot_image_view)
         textContainer = findViewById(R.id.text_container)
-        copyButton = findViewById(R.id.copy_button)
-        saveButton = findViewById(R.id.save_button)
         closeButton = findViewById(R.id.close_button)
-        searchButton = findViewById(R.id.search_button)
         dictionaryMatchesRecyclerView = findViewById(R.id.dictionary_matches_recycler)
         loadingIndicator = findViewById(R.id.loading_indicator)
         noMatchesTextView = findViewById(R.id.no_matches_text)
         selectionHintTextView = findViewById(R.id.selection_hint)
         dictionarySearchEditText = findViewById(R.id.dictionary_search_edit_text)
         dictionarySearchButton = findViewById(R.id.dictionary_search_button)
+        
+        // Adjust layout based on screen size and orientation
+        adjustLayoutForScreenSize()
+    }
+    
+    /**
+     * Adjust layout elements based on screen size and orientation
+     * This helps with foldable devices and different aspect ratios
+     */
+    private fun adjustLayoutForScreenSize() {
+        // Get display metrics
+        val displayMetrics = resources.displayMetrics
+        val widthDp = displayMetrics.widthPixels / displayMetrics.density
+        val heightDp = displayMetrics.heightPixels / displayMetrics.density
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        // Log screen dimensions for debugging
+        Log.d(TAG, "Screen dimensions: ${widthDp}dp × ${heightDp}dp, isLandscape: $isLandscape")
+        
+        // Adjust image view size constraints for different screen sizes
+        val params = screenshotImageView.layoutParams
+        if (params != null) {
+            // For narrow screens like foldables in portrait mode
+            if (widthDp < 400 && !isLandscape) {
+                Log.d(TAG, "Adjusting layout for narrow screen")
+                // Limit the height of the image view to avoid taking too much space
+                try {
+                    val constraintParams = params as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+                    constraintParams.matchConstraintMaxHeight = displayMetrics.density.toInt() * 180
+                    constraintParams.dimensionRatio = "H,4:3" // Adjust aspect ratio for better fit
+                    screenshotImageView.layoutParams = constraintParams
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error adjusting image view constraints", e)
+                }
+            }
+        }
     }
     
     /**
@@ -228,6 +268,9 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             viewModel.setScreenshotPath(screenshotPath)
             dictionarySearchManager.setScreenshotPath(screenshotPath)
         }
+        
+        // Explicitly trigger a dictionary search for the entire OCR text to show initial matches
+        viewModel.findDictionaryMatches(ocrText)
     }
     
     /**
@@ -305,8 +348,6 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
                 { word -> dictionarySearchManager.searchTerm(word) },
                 { word -> dictionarySearchManager.updateSearchField(word) }
             )
-            // Change hint text to indicate tappable words
-            selectionHintTextView.text = getString(R.string.tap_word_hint)
         }
 
         // Observe screenshot path
@@ -319,14 +360,30 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
 
         // Observe dictionary matches for UI updates
         viewModel.dictionaryMatches.observe(this) { matches ->
+            Log.d(TAG, "Dictionary matches updated: ${matches.size} matches found")
             noMatchesTextView.visibility = if (matches.isEmpty()) View.VISIBLE else View.GONE
             dictionaryMatchesRecyclerView.visibility = if (matches.isEmpty()) View.GONE else View.VISIBLE
+            
+            // Force a layout refresh
+            dictionaryMatchesRecyclerView.adapter?.notifyDataSetChanged()
+            
+            // Ensure appropriate minimum height based on matches
+            val layoutParams = dictionaryMatchesRecyclerView.layoutParams
+            if (matches.isNotEmpty()) {
+                // Set a minimum height proportional to the number of matches (up to a limit)
+                val minHeightDp = Math.min(matches.size * 120, 400)
+                val minHeightPx = (minHeightDp * resources.displayMetrics.density).toInt()
+                layoutParams.height = minHeightPx
+            } else {
+                // Default minimum height when no matches
+                layoutParams.height = (80 * resources.displayMetrics.density).toInt()
+            }
+            dictionaryMatchesRecyclerView.layoutParams = layoutParams
         }
 
         // Observe searching state
         viewModel.isSearching.observe(this) { isSearching ->
             loadingIndicator.visibility = if (isSearching) View.VISIBLE else View.GONE
-            searchButton.isEnabled = !isSearching
         }
 
         // Observe save operation result
@@ -339,16 +396,13 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
      * Set up button click listeners
      */
     private fun setupClickListeners() {
-        // Search dictionary button
-        searchButton.setOnClickListener {
-            viewModel.findDictionaryMatches(null)
-        }
-
         // Dictionary search button
         dictionarySearchButton.setOnClickListener {
             val searchTerm = dictionarySearchEditText.text.toString().trim()
             if (searchTerm.isNotEmpty()) {
                 dictionarySearchManager.searchTerm(searchTerm)
+                // Hide keyboard when search button is clicked
+                hideKeyboard()
             }
         }
 
@@ -358,6 +412,8 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
                 val searchTerm = dictionarySearchEditText.text.toString().trim()
                 if (searchTerm.isNotEmpty()) {
                     dictionarySearchManager.searchTerm(searchTerm)
+                    // Hide keyboard when search is initiated from keyboard
+                    hideKeyboard()
                 }
                 true
             } else {
@@ -365,33 +421,11 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             }
         }
 
-        // Copy button
-        copyButton.setOnClickListener {
-            copyToClipboard(fullOcrText)
-        }
-
-        // Save button
-        saveButton.setOnClickListener {
-            // Create a directory in the app's files directory for saving OCR results
-            val filesDir = File(filesDir, "ocr_results")
-            viewModel.saveOcrTextToFile(filesDir)
-        }
-
         // Close button
         closeButton.setOnClickListener {
             // Use finishAndRemoveTask to fully close the activity and return to the previous app
             finishAndRemoveTask()
         }
-    }
-    
-    /**
-     * Copy text to clipboard and show a toast
-     */
-    private fun copyToClipboard(text: String) {
-        val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clipData = ClipData.newPlainText("OCR Text", text)
-        clipboardManager.setPrimaryClip(clipData)
-        Toast.makeText(this, R.string.text_copied, Toast.LENGTH_SHORT).show()
     }
 
     // OnAudioPlayListener implementation
@@ -408,5 +442,13 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             viewModel.translatedText.value,
             ocrLanguage
         )
+    }
+    
+    /**
+     * Hide the keyboard
+     */
+    private fun hideKeyboard() {
+        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputMethodManager.hideSoftInputFromWindow(dictionarySearchEditText.windowToken, 0)
     }
 }

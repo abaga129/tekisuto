@@ -4,7 +4,7 @@
     <string name="crop_image">Crop Image</string>
 
     <!-- Main Activity -->
-    <string name="app_description">Screen Reader OCR Accessibility Service</string>
+    <string name="app_description">OCR Service for Language Learning</string>
     <string name="app_icon_description">OCR App Icon</string>
     <string name="service_instructions">Enable the accessibility service to use the OCR feature with a movable floating button</string>
     <string name="service_status">Service Status:</string>
@@ -13,6 +13,7 @@
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
     <string name="usage_instructions">After enabling the service, you can access the OCR feature using the floating button. You can move the button anywhere on screen and close it when not in use.</string>
     <string name="open_ocr_button">Open OCR button</string>
+    <string name="show_floating_button">Show Floating Button</string>
 
     <!-- Accessibility Service -->
     <string name="accessibility_service_description">Provides OCR functionality for any screen content via a movable floating button</string>

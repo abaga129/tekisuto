@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dimensions for large screens like tablets and foldables in unfolded state -->
+    <dimen name="text_margin">24dp</dimen>
+    <dimen name="content_margin">24dp</dimen>
+    <dimen name="header_text_size">24sp</dimen>
+    <dimen name="body_text_size">16sp</dimen>
+    <dimen name="button_min_width">120dp</dimen>
+    <dimen name="button_min_height">56dp</dimen>
+    <dimen name="dictionary_item_spacing">12dp</dimen>
+    <dimen name="container_min_height">150dp</dimen>
+    <dimen name="container_max_height">250dp</dimen>
+    <dimen name="icon_size">32dp</dimen>
+</resources>
