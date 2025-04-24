@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 30 // Updated to API 30 (Android 11) for screenshot functionality
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.8-alpha"
+        versionCode = 9
+        versionName = "0.9-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
