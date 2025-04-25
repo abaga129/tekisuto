@@ -18,9 +18,11 @@ data class ProfileEntity(
     val lastUsedDate: Date = Date(),
     
     // OCR settings
+    val ocrService: String = "mlkit",
     val ocrLanguage: String = "latin",
     val translateOcrText: Boolean = true,
     val translateTargetLanguage: String = "en",
+    val cloudOcrApiKey: String = "",
     
     // Screenshot settings
     val enableLongPressCapture: Boolean = true,
@@ -81,6 +83,12 @@ interface ProfileDao {
     suspend fun getProfileCount(): Int
     
     // Update OCR settings
+    @androidx.room.Query("UPDATE profiles SET ocrService = :ocrService WHERE id = :id")
+    suspend fun updateOcrService(id: Long, ocrService: String)
+    
+    @androidx.room.Query("UPDATE profiles SET cloudOcrApiKey = :apiKey WHERE id = :id")
+    suspend fun updateCloudOcrApiKey(id: Long, apiKey: String)
+    
     @androidx.room.Query("UPDATE profiles SET ocrLanguage = :ocrLanguage WHERE id = :id")
     suspend fun updateOcrLanguage(id: Long, ocrLanguage: String)
     

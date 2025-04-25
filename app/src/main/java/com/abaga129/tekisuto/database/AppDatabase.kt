@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfileEntity::class,
         ProfileDictionaryEntity::class
     ], 
-    version = 9
+    version = 10
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -39,7 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 "tekisuto_dictionary${com.abaga129.tekisuto.BuildConfig.DB_NAME_SUFFIX}.db"
             )
-            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .fallbackToDestructiveMigration()
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .build()
@@ -136,6 +136,23 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         """)
         database.execSQL("""
             ALTER TABLE profiles ADD COLUMN ankiFieldAudio INTEGER NOT NULL DEFAULT -1
+        """)
+    }
+}
+
+/**
+ * Migration from version 9 to 10 - adds ocrService and cloudOcrApiKey fields to profiles table
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Add ocrService column to profiles table with default value of 'mlkit'
+        database.execSQL("""
+            ALTER TABLE profiles ADD COLUMN ocrService TEXT NOT NULL DEFAULT 'mlkit'
+        """)
+        
+        // Add cloudOcrApiKey column to profiles table with default empty string
+        database.execSQL("""
+            ALTER TABLE profiles ADD COLUMN cloudOcrApiKey TEXT NOT NULL DEFAULT ''
         """)
     }
 }

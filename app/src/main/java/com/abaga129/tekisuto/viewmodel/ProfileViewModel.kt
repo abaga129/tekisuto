@@ -91,6 +91,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
                 
                 if (currentProfile != null) {
+                    Log.d(TAG, "Loading profile: ${currentProfile.name} (ID: ${currentProfile.id}) with OCR service: ${currentProfile.ocrService}")
                     // Apply profile settings
                     settingsManager.loadProfileSettings(currentProfile)
                     _currentProfile.value = currentProfile
@@ -98,6 +99,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     // If no default profile, set the first one as default
                     val firstProfile = _profiles.value?.first()
                     if (firstProfile != null) {
+                        Log.d(TAG, "No default profile found, setting first profile as default: ${firstProfile.name} (ID: ${firstProfile.id}) with OCR service: ${firstProfile.ocrService}")
                         setAsDefault(firstProfile)
                     }
                 }
@@ -226,9 +228,20 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 // Extract settings from SharedPreferences into the profile
                 val updatedProfile = settingsManager.extractProfileFromSettings(currentProfile)
                 
+                Log.d(TAG, "Saving settings to profile: ${updatedProfile.name} (ID: ${updatedProfile.id}) with OCR service: ${updatedProfile.ocrService}, OCR language: ${updatedProfile.ocrLanguage}")
+                
                 withContext(Dispatchers.IO) {
                     // Update the profile in the database
                     profileDao.updateProfile(updatedProfile)
+                    
+                    // Explicitly update OCR language separately as a safeguard
+                    profileDao.updateOcrLanguage(updatedProfile.id, updatedProfile.ocrLanguage)
+                    
+                    // Verify database update
+                    val verifiedProfile = profileDao.getProfileById(updatedProfile.id)
+                    if (verifiedProfile != null) {
+                        Log.d(TAG, "Verified database update - profile ${verifiedProfile.id} OCR language: ${verifiedProfile.ocrLanguage}")
+                    }
                 }
                 
                 // Update cached current profile
@@ -243,6 +256,83 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 Log.d(TAG, "Current settings saved to profile: ${updatedProfile.name} (ID: ${updatedProfile.id})")
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving current settings to profile", e)
+            }
+        }
+    }
+    
+    /**
+     * Directly update a profile's OCR service setting
+     */
+    fun updateProfileWithService(profile: ProfileEntity, serviceType: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Directly updating profile ${profile.id} OCR service to: $serviceType")
+                
+                // First, update the OCR service in the database
+                withContext(Dispatchers.IO) {
+                    profileDao.updateOcrService(profile.id, serviceType)
+                }
+                
+                // Create an updated profile object
+                val updatedProfile = profile.copy(ocrService = serviceType)
+                
+                // Update cached current profile
+                _currentProfile.value = updatedProfile
+                
+                // Reload profiles to update the list
+                val allProfiles = withContext(Dispatchers.IO) {
+                    profileDao.getAllProfiles()
+                }
+                _profiles.value = allProfiles
+                
+                Log.d(TAG, "OCR service updated directly in profile: ${profile.name} (ID: ${profile.id}) to: $serviceType")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating OCR service in profile", e)
+            }
+        }
+    }
+    
+    /**
+     * Directly update a profile's OCR language setting
+     */
+    fun updateProfileWithLanguage(profile: ProfileEntity, language: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Directly updating profile ${profile.id} OCR language to: $language")
+                
+                // First, update the OCR language in the database
+                withContext(Dispatchers.IO) {
+                    profileDao.updateOcrLanguage(profile.id, language)
+                    
+                    // Verify the update in the database
+                    val updatedFromDb = profileDao.getProfileById(profile.id)
+                    if (updatedFromDb != null) {
+                        Log.d(TAG, "Database update verification - profile ${profile.id} OCR language: ${updatedFromDb.ocrLanguage}")
+                    }
+                }
+                
+                // Create an updated profile object
+                val updatedProfile = profile.copy(ocrLanguage = language)
+                
+                // Update cached current profile
+                _currentProfile.value = updatedProfile
+                
+                // Reload profiles to update the list
+                val allProfiles = withContext(Dispatchers.IO) {
+                    profileDao.getAllProfiles()
+                }
+                _profiles.value = allProfiles
+                
+                Log.d(TAG, "OCR language updated directly in profile: ${profile.name} (ID: ${profile.id}) to: $language")
+                
+                // Get a reference to the settings manager
+                val settingsManager = ProfileSettingsManager(getApplication())
+                
+                // Verify that the language was saved in SharedPreferences
+                val savedLanguage = settingsManager.getOcrLanguage()
+                Log.d(TAG, "Verification - Current OCR language in SharedPreferences: $savedLanguage")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating OCR language in profile", e)
             }
         }
     }

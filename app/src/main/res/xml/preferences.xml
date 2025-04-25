@@ -35,6 +35,24 @@
         app:iconSpaceReserved="false">
 
         <ListPreference
+            android:key="ocr_service"
+            android:title="@string/ocr_service_title"
+            android:summary="@string/ocr_service_summary"
+            android:entries="@array/ocr_service_entries"
+            android:entryValues="@array/ocr_service_values"
+            android:defaultValue="mlkit"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+            
+        <EditTextPreference
+            android:key="cloud_ocr_api_key"
+            android:title="@string/cloud_ocr_api_key_title"
+            android:summary="@string/cloud_ocr_api_key_summary"
+            android:dependency="ocr_service"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="false" />
+
+        <ListPreference
             android:key="ocr_language"
             android:title="@string/ocr_language_title"
             android:summary="@string/ocr_language_summary"

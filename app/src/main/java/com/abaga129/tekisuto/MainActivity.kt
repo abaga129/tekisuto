@@ -162,6 +162,9 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         // Refresh current profile
         profileViewModel.loadCurrentProfile()
         
+        // Set the ProfileViewModel to the service if it's running
+        setProfileViewModelToService()
+        
         // Add a delay to ensure the service status is properly checked
         Handler(Looper.getMainLooper()).postDelayed({
             // Show the floating button if the service is enabled
@@ -299,6 +302,24 @@ class MainActivity : BaseEdgeToEdgeActivity() {
             dictionaryInfoTextView.visibility = View.VISIBLE
         } else {
             dictionaryInfoTextView.visibility = View.GONE
+        }
+    }
+    
+    /**
+     * Set the ProfileViewModel to the AccessibilityOcrService if it's running
+     */
+    private fun setProfileViewModelToService() {
+        try {
+            // Get the service instance
+            val serviceInstance = AccessibilityOcrService.getInstance()
+            if (serviceInstance != null) {
+                android.util.Log.d("MainActivity", "Setting ProfileViewModel to AccessibilityOcrService")
+                serviceInstance.setProfileViewModel(profileViewModel)
+            } else {
+                android.util.Log.d("MainActivity", "AccessibilityOcrService instance not available")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error setting ProfileViewModel to service", e)
         }
     }
     

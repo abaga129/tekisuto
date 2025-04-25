@@ -11,7 +11,9 @@ import android.widget.Toast
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.util.OcrHelper
 import com.abaga129.tekisuto.util.ProfileSettingsManager
+import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import com.yalantis.ucrop.UCrop
+import androidx.lifecycle.ViewModelProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -25,6 +27,7 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
     private var screenshotPath: String? = null
     private val TAG = "ImageCropActivity"
     private var profileId: Long = -1L
+    private lateinit var profileViewModel: ProfileViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +38,12 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
 
         Log.d(TAG, "ImageCropActivity onCreate called")
         ocrHelper = OcrHelper(this)
+        
+        // Initialize the ProfileViewModel
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
+        
+        // Set the ProfileViewModel to the OcrHelper for language-aware operations
+        ocrHelper.setProfileViewModel(profileViewModel)
 
         // Get the screenshot path from the intent
         screenshotPath = intent.getStringExtra("SCREENSHOT_PATH")

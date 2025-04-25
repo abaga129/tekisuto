@@ -17,6 +17,7 @@ import androidx.preference.SeekBarPreference
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.ui.dialog.VoiceSelectionDialog
 import com.abaga129.tekisuto.ui.profile.ProfileManagerActivity
+import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.abaga129.tekisuto.util.SpeechService
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,63 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
         // Initialize ViewModel
         profileViewModel = ViewModelProvider(requireActivity()).get(ProfileViewModel::class.java)
         
+        // OCR service preference
+        findPreference<ListPreference>("ocr_service")?.let { servicePref ->
+            Log.d(TAG, "Current OCR service: ${servicePref.value}")
+            
+            // Initialize Cloud OCR API key visibility based on current service
+            updateCloudOcrApiKeyVisibility(servicePref.value)
+            
+            servicePref.setOnPreferenceChangeListener { _, newValue ->
+                val serviceType = newValue as String
+                Log.d(TAG, "OCR service changed to: $serviceType")
+                
+                // Update Cloud OCR API key visibility
+                updateCloudOcrApiKeyVisibility(serviceType)
+                
+                // Save the changed OCR service to the current profile immediately
+                if (!isInitialSetup) {
+                    Log.d(TAG, "Saving OCR service change immediately: $serviceType")
+                    
+                    // Get the current profile
+                    val currentProfile = profileViewModel.currentProfile.value
+                    if (currentProfile != null) {
+                        try {
+                            // Get a reference to the settings manager
+                            val settingsManager = ProfileSettingsManager(requireContext())
+                            
+                            // Save the OCR service change in SharedPreferences
+                            settingsManager.saveOcrServiceChange(serviceType, currentProfile.id)
+                            
+                            // Update the profile in database through ViewModel
+                            val updatedProfile = currentProfile.copy(ocrService = serviceType)
+                            profileViewModel.updateProfileWithService(updatedProfile, serviceType)
+                            
+                            Log.d(TAG, "Updated profile with service: $serviceType")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error saving OCR service change", e)
+                        }
+                    }
+                }
+                
+                true
+            }
+        }
+        
+        // Cloud OCR API key preference
+        findPreference<EditTextPreference>("cloud_ocr_api_key")?.let { apiKeyPref ->
+            // Hide API key in summary
+            apiKeyPref.summaryProvider = Preference.SummaryProvider<EditTextPreference> { preference ->
+                val text = preference.text
+                if (text.isNullOrEmpty()) {
+                    getString(R.string.cloud_ocr_api_key_summary)
+                } else {
+                    // Show asterisks instead of the actual key
+                    "********" + text.takeLast(4)
+                }
+            }
+        }
+        
         // OCR language preference
         findPreference<ListPreference>("ocr_language")?.let { languagePref ->
             Log.d(TAG, "Current OCR language: ${languagePref.value}")
@@ -59,12 +117,42 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
             updateVoiceSelectionSummary(currentLanguage)
             
             languagePref.setOnPreferenceChangeListener { _, newValue ->
-                Log.d(TAG, "OCR language changed to: $newValue")
+                val language = newValue as String
+                Log.d(TAG, "OCR language changed to: $language")
+                
                 // Update current language
-                currentLanguage = convertOcrLanguageToSpeechLanguage(newValue as String)
+                currentLanguage = convertOcrLanguageToSpeechLanguage(language)
                 
                 // Update voice selection summary
                 updateVoiceSelectionSummary(currentLanguage)
+                
+                // Save the changed OCR language to the current profile immediately
+                if (!isInitialSetup) {
+                    Log.d(TAG, "Saving OCR language change immediately: $language")
+                    
+                    // Get the current profile
+                    val currentProfile = profileViewModel.currentProfile.value
+                    if (currentProfile != null) {
+                        try {
+                            // Get a reference to the settings manager
+                            val settingsManager = ProfileSettingsManager(requireContext())
+                            
+                            // Save the OCR language change in SharedPreferences
+                            settingsManager.saveOcrLanguageChange(language, currentProfile.id)
+                            
+                            // Update the profile in database through ViewModel
+                            val updatedProfile = currentProfile.copy(ocrLanguage = language)
+                            profileViewModel.updateProfileWithLanguage(updatedProfile, language)
+                            
+                            // Force save all settings to ensure the language change is persisted
+                            profileViewModel.saveCurrentSettings()
+                            
+                            Log.d(TAG, "Updated profile with language: $language")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error saving OCR language change", e)
+                        }
+                    }
+                }
                 
                 true
             }
@@ -241,6 +329,45 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
         // Initial setup flag to prevent auto-saving during initial load
         isInitialSetup = true
         
+        // Make sure we get the latest OCR service and language values from the current profile
+        profileViewModel.currentProfile.value?.let { profile ->
+            Log.d(TAG, "onResume: Getting OCR settings from current profile: " + 
+                   "Service=${profile.ocrService}, Language=${profile.ocrLanguage}")
+            
+            // Update the OCR service preference directly from the profile value
+            findPreference<ListPreference>("ocr_service")?.let { servicePref ->
+                if (servicePref.value != profile.ocrService) {
+                    Log.d(TAG, "onResume: Updating OCR service value from ${servicePref.value} to ${profile.ocrService}")
+                    servicePref.value = profile.ocrService
+                } else {
+                    Log.d(TAG, "onResume: OCR service value already matches profile: ${servicePref.value}")
+                }
+            }
+            
+            // Update the OCR language preference directly from the profile value
+            findPreference<ListPreference>("ocr_language")?.let { languagePref ->
+                if (languagePref.value != profile.ocrLanguage) {
+                    Log.d(TAG, "onResume: Updating OCR language value from ${languagePref.value} to ${profile.ocrLanguage}")
+                    languagePref.value = profile.ocrLanguage
+                    
+                    // Also update the current language variable for voice selection
+                    currentLanguage = convertOcrLanguageToSpeechLanguage(profile.ocrLanguage)
+                    updateVoiceSelectionSummary(currentLanguage)
+                } else {
+                    Log.d(TAG, "onResume: OCR language value already matches profile: ${languagePref.value}")
+                }
+            }
+        }
+        
+        // Debug current OCR settings values
+        findPreference<ListPreference>("ocr_service")?.let { servicePref ->
+            Log.d(TAG, "onResume: Current OCR service value after update: ${servicePref.value}")
+        }
+        
+        findPreference<ListPreference>("ocr_language")?.let { languagePref ->
+            Log.d(TAG, "onResume: Current OCR language value after update: ${languagePref.value}")
+        }
+        
         // Update profile display
         updateCurrentProfileInfo()
         
@@ -258,11 +385,51 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
     override fun onPause() {
         super.onPause()
         
+        // Get the current OCR service and language values before unregistering the listener
+        val currentOcrService = preferenceManager.sharedPreferences?.getString("ocr_service", "mlkit")
+        val currentOcrLanguage = preferenceManager.sharedPreferences?.getString("ocr_language", "latin")
+        
         // Unregister listener
         preferenceManager.sharedPreferences?.unregisterOnSharedPreferenceChangeListener(this)
         
         // Auto-save settings when leaving
         if (!isInitialSetup) {
+            // Save current OCR service and language directly (as an extra safeguard)
+            val currentProfile = profileViewModel.currentProfile.value
+            if (currentProfile != null) {
+                try {
+                    // Get a reference to the settings manager
+                    val settingsManager = ProfileSettingsManager(requireContext())
+                    
+                    // Save OCR service if it exists
+                    if (currentOcrService != null) {
+                        Log.d(TAG, "onPause: Saving OCR service: $currentOcrService")
+                        // Save the OCR service change to SharedPreferences
+                        settingsManager.saveOcrServiceChange(currentOcrService, currentProfile.id)
+                        
+                        // Also update the profile directly via the ViewModel
+                        profileViewModel.updateProfileWithService(currentProfile.copy(ocrService = currentOcrService), currentOcrService)
+                    }
+                    
+                    // Save OCR language if it exists
+                    if (currentOcrLanguage != null) {
+                        Log.d(TAG, "onPause: Saving OCR language: $currentOcrLanguage")
+                        // Save the OCR language change to SharedPreferences
+                        settingsManager.saveOcrLanguageChange(currentOcrLanguage, currentProfile.id)
+                        
+                        // Also update the profile directly via the ViewModel
+                        profileViewModel.updateProfileWithLanguage(currentProfile.copy(ocrLanguage = currentOcrLanguage), currentOcrLanguage)
+                        
+                        // Log this update for debugging
+                        Log.d(TAG, "onPause: Updated profile with language: $currentOcrLanguage")
+                    }
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error saving OCR settings in onPause", e)
+                }
+            }
+            
+            // Save all settings
             saveCurrentSettings()
         }
     }
@@ -293,7 +460,7 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
         // Optional: automatically save to profile on certain changes
         /*
         when (key) {
-            "ocr_language", "translate_ocr_text", "translate_target_language" -> {
+            "ocr_service", "ocr_language", "translate_ocr_text", "translate_target_language" -> {
                 // Auto-save after OCR settings change
                 saveCurrentSettings()
             }
@@ -394,6 +561,16 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
         
         // If the service is running, tell it to re-evaluate the button visibility
         accessibilityService?.refreshFloatingButtonVisibility()
+    }
+    
+    /**
+     * Update the visibility of the Cloud OCR API key preference based on the selected service
+     */
+    private fun updateCloudOcrApiKeyVisibility(serviceType: String) {
+        findPreference<EditTextPreference>("cloud_ocr_api_key")?.let { apiKeyPref ->
+            apiKeyPref.isVisible = serviceType == "cloud"
+            apiKeyPref.dependency = if (serviceType == "cloud") null else "ocr_service"
+        }
     }
     
     override fun onDestroy() {

@@ -30,6 +30,7 @@ import com.abaga129.tekisuto.ui.ImageCropActivity
 import com.abaga129.tekisuto.util.OcrHelper
 import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.abaga129.tekisuto.util.ScreenshotHelper
+import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -87,6 +88,7 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
     private val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
+    private var profileViewModel: ProfileViewModel? = null
     
     // Floating button handler
     private lateinit var floatingButtonHandler: FloatingButtonHandler
@@ -337,6 +339,19 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             
             // Update the preference
             prefs.edit().putBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true).apply()
+        }
+    }
+    
+    /**
+     * Set the ProfileViewModel for the service
+     * This is needed because services don't have ViewModelProvider
+     */
+    fun setProfileViewModel(viewModel: ProfileViewModel) {
+        this.profileViewModel = viewModel
+        
+        // Set the ProfileViewModel to the OcrHelper for language-aware operations
+        if (::ocrHelper.isInitialized) {
+            ocrHelper.setProfileViewModel(viewModel)
         }
     }
     

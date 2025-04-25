@@ -19,12 +19,28 @@
     <string name="accessibility_service_description">Provides OCR functionality for any screen content via a movable floating button</string>
     <string name="accessibility_service_summary">Use the floating button to scan any text on screen</string>
     
-    <!-- OCR Language Settings -->
+    <!-- OCR Settings -->
     <string name="ocr_settings_title" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
+    <string name="ocr_service_title">OCR Service</string>
+    <string name="ocr_service_summary">Select the OCR engine to use</string>
+    <string name="cloud_ocr_api_key_title">Cloud OCR API Key</string>
+    <string name="cloud_ocr_api_key_summary">Enter your Cloud OCR service API key</string>
     <string name="ocr_language_title">OCR Language</string>
     <string name="ocr_language_summary">Select the language for text recognition</string>
-    <string name="ocr_language_default">latin</string>
+    <string name="ocr_language_default">english</string>
     <string name="ocr_settings" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
+    
+    <string-array name="ocr_service_entries">
+        <item>Google ML Kit</item>
+        <item>Cloud OCR Service</item>
+        <item>Google Lens</item>
+    </string-array>
+    
+    <string-array name="ocr_service_values">
+        <item>mlkit</item>
+        <item>cloud</item>
+        <item>glens</item>
+    </string-array>
     
     <!-- Screenshot Settings -->
     <string name="hide_accessibility_button_title">Hide Accessibility Button</string>
@@ -35,7 +51,12 @@
     <string name="long_press_duration_summary">Duration in milliseconds for detecting a long press</string>
     
     <string-array name="ocr_language_entries">
-        <item>Latin (English, Spanish, French, etc.)</item>
+        <item>English</item>
+        <item>Spanish</item>
+        <item>French</item>
+        <item>German</item>
+        <item>Italian</item>
+        <item>Portuguese</item>
         <item>Chinese</item>
         <item>Devanagari (Hindi, Sanskrit, etc.)</item>
         <item>Japanese</item>
@@ -43,7 +64,12 @@
     </string-array>
     
     <string-array name="ocr_language_values">
-        <item>latin</item>
+        <item>english</item>
+        <item>spanish</item>
+        <item>french</item>
+        <item>german</item>
+        <item>italian</item>
+        <item>portuguese</item>
         <item>chinese</item>
         <item>devanagari</item>
         <item>japanese</item>
