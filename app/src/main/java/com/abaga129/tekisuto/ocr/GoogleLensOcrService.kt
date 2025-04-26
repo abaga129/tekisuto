@@ -52,6 +52,27 @@ class GoogleLensOcrService(private val context: Context) : OcrService, Coroutine
             Class.forName("org.json.JSONArray")
             googleLensAvailable = true
             
+            // Increase the maximum number of redirects for all HttpURLConnection instances
+            try {
+                // This is a static field that affects all HttpURLConnection instances
+                val followRedirectsField = HttpURLConnection::class.java.getDeclaredField("followRedirects")
+                followRedirectsField.isAccessible = true
+                followRedirectsField.setBoolean(null, true)
+                
+                // On some Android versions, there's a maxRedirects field that we can modify
+                try {
+                    val maxRedirectsField = Class.forName("com.android.okhttp.internal.http.HttpURLConnectionImpl")
+                        .getDeclaredField("maxRedirects")
+                    maxRedirectsField.isAccessible = true
+                    maxRedirectsField.setInt(null, 50) // Increase from default 20
+                    Log.d(TAG, "Successfully increased max redirects limit")
+                } catch (e: Exception) {
+                    Log.d(TAG, "Could not modify maxRedirects: ${e.message}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error modifying HTTP redirect settings: ${e.message}")
+            }
+            
             Log.d(TAG, "Initialized Google Lens OCR service")
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing Google Lens OCR service", e)
@@ -141,11 +162,13 @@ class GoogleLensOcrService(private val context: Context) : OcrService, Coroutine
             val uploadConnection = URL(url).openConnection() as HttpURLConnection
             uploadConnection.requestMethod = "POST"
             uploadConnection.doOutput = true
+            // Disable automatic redirect following
+            uploadConnection.instanceFollowRedirects = false
             uploadConnection.setRequestProperty("Host", "lens.google.com")
             uploadConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0")
             uploadConnection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             // Set Accept-Language based on OCR language setting
-uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader())
+            uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader())
             uploadConnection.setRequestProperty("Accept-Encoding", "gzip, deflate, br, zstd")
             uploadConnection.setRequestProperty("Referer", "https://www.google.com/")
             uploadConnection.setRequestProperty("Origin", "https://www.google.com")
@@ -174,7 +197,12 @@ uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader()
             
             // Check response code
             val uploadResponseCode = uploadConnection.responseCode
-            if (uploadResponseCode != 303) {
+            
+            // Google Lens typically returns a 303 See Other redirect
+            // But it could also return other redirect codes
+            if (uploadResponseCode != HttpURLConnection.HTTP_SEE_OTHER && 
+                uploadResponseCode != HttpURLConnection.HTTP_MOVED_TEMP && 
+                uploadResponseCode != HttpURLConnection.HTTP_MOVED_PERM) {
                 Log.e(TAG, "Error uploading image to Google Lens: Response code $uploadResponseCode")
                 return@withContext "Error: Failed to upload image to Google Lens (Response: $uploadResponseCode)"
             }
@@ -185,6 +213,8 @@ uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader()
                 Log.e(TAG, "No Location header in response")
                 return@withContext "Error: No redirect location found in Google Lens response"
             }
+            
+            Log.d(TAG, "Redirect URL: $location")
             
             // Extract session parameters from redirect URL
             val locationParams = mutableMapOf<String, String>()
@@ -207,9 +237,55 @@ uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader()
             val metadataConnection = URL(metadataUrl).openConnection() as HttpURLConnection
             metadataConnection.requestMethod = "GET"
             metadataConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0")
+            // Set instance follow redirects to false to handle redirects manually if needed
+            metadataConnection.instanceFollowRedirects = false
             
-            // Read metadata response
-            val metadataResponse = metadataConnection.inputStream.bufferedReader().use { it.readText() }
+            // Check response code
+            val metadataResponseCode = metadataConnection.responseCode
+            
+            // Handle potential redirects manually
+            val maxRedirects = 5 // Set a reasonable limit
+            var redirectCount = 0
+            var finalConnection = metadataConnection
+            var finalUrl = metadataUrl
+            
+            // Follow redirects manually if needed
+            while ((metadataResponseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
+                   metadataResponseCode == HttpURLConnection.HTTP_MOVED_PERM ||
+                   metadataResponseCode == HttpURLConnection.HTTP_SEE_OTHER) &&
+                   redirectCount < maxRedirects) {
+                
+                // Get the new location
+                val newLocation = finalConnection.getHeaderField("Location")
+                if (newLocation == null) {
+                    Log.e(TAG, "Redirect location not found")
+                    break
+                }
+                
+                // Close current connection
+                finalConnection.disconnect()
+                
+                // Create new connection to the redirect location
+                finalUrl = newLocation
+                finalConnection = URL(finalUrl).openConnection() as HttpURLConnection
+                finalConnection.requestMethod = "GET"
+                finalConnection.instanceFollowRedirects = false
+                finalConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0")
+                
+                // Check the new response code
+                val responseCode = finalConnection.responseCode
+                redirectCount++
+                
+                Log.d(TAG, "Following redirect $redirectCount to: $finalUrl")
+                
+                // If we got a 200 response, break the loop
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    break
+                }
+            }
+            
+            // Read the final response
+            val metadataResponse = finalConnection.inputStream.bufferedReader().use { it.readText() }
             
             // The response format is unusual - we need the third line which contains the JSON data
             val responseLines = metadataResponse.lines()
@@ -226,8 +302,14 @@ uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader()
             return@withContext result
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing image with Google Lens", e)
-            return@withContext "Error processing image with Google Lens: ${e.message}"
+            // Special handling for the "Too many follow-up requests" error
+            if (e is java.net.ProtocolException && e.message?.contains("Too many follow-up requests") == true) {
+                Log.e(TAG, "Too many redirects detected. This could happen if Google Lens changed its API structure.", e)
+                return@withContext "Error: Google Lens returned too many redirects. Please try again later or switch to another OCR service in Settings."
+            } else {
+                Log.e(TAG, "Error processing image with Google Lens", e)
+                return@withContext "Error processing image with Google Lens: ${e.message}"
+            }
         }
     }
     
@@ -336,48 +418,59 @@ uploadConnection.setRequestProperty("Accept-Language", getAcceptLanguageHeader()
     
     /**
      * Preprocess the image for Google Lens
-     * Resizes and compresses the image if needed
+     * Resizes and compresses the image if needed using algorithm based on Google Lens requirements
+     * 
+     * Implements the algorithm from the Python sample:
+     * - Ensures image size (width * height) is under 3,000,000 pixels
+     * - Maintains the original aspect ratio
+     * - Uses high quality scaling for better text recognition
+     * 
+     * @param bitmap The input bitmap to process
+     * @return Byte array of the processed image in PNG format (best format for Google Lens)
      */
     private fun preprocessImage(bitmap: Bitmap): ByteArray {
         // Get the original dimensions
         val width = bitmap.width
         val height = bitmap.height
         
-        // Maximum dimensions for Google Lens (to avoid excessive upload size)
-        val maxDimension = 1600
+        // Maximum pixel count for Google Lens recommended processing
+        val MAX_IMAGE_PIXELS = 3000000
         
-        // Check if resizing is needed
-        val targetBitmap = if (width > maxDimension || height > maxDimension) {
-            // Calculate new dimensions
+        // Check if resizing is needed based on total pixel count
+        val targetBitmap = if (width * height > MAX_IMAGE_PIXELS) {
+            Log.d(TAG, "Image too large (${width * height} pixels), resizing to fit within $MAX_IMAGE_PIXELS pixels")
+            
+            // Calculate new dimensions while maintaining aspect ratio
             val aspectRatio = width.toFloat() / height.toFloat()
-            val newWidth: Int
-            val newHeight: Int
             
-            if (width > height) {
-                newWidth = maxDimension
-                newHeight = (newWidth / aspectRatio).toInt()
-            } else {
-                newHeight = maxDimension
-                newWidth = (newHeight * aspectRatio).toInt()
-            }
+            // Calculate new width using the square root formula from the Python code
+            val newWidth = Math.sqrt((MAX_IMAGE_PIXELS * aspectRatio).toDouble()).toInt()
+            val newHeight = (newWidth / aspectRatio).toInt()
             
-            // Resize the bitmap
+            Log.d(TAG, "Resizing image from ${width}x${height} to ${newWidth}x${newHeight}")
+            
+            // Resize the bitmap with high quality scaling (equivalent to LANCZOS in Python PIL)
             Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
         } else {
+            Log.d(TAG, "Image size (${width}x${height}) within limit, no resizing needed")
             // No resizing needed
             bitmap
         }
         
         // Convert to PNG format (Google Lens works best with PNG)
         val outputStream = ByteArrayOutputStream()
-        targetBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        targetBitmap.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
+        
+        // Log the size of the processed image
+        val processedBytes = outputStream.toByteArray()
+        Log.d(TAG, "Processed image size: ${processedBytes.size} bytes")
         
         // If we created a new bitmap for resizing, recycle it
         if (targetBitmap != bitmap) {
             targetBitmap.recycle()
         }
         
-        return outputStream.toByteArray()
+        return processedBytes
     }
     
     /**

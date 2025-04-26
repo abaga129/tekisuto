@@ -2,6 +2,7 @@ package com.abaga129.tekisuto.ocr
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -54,8 +55,13 @@ interface OcrService {
         fun createService(context: Context, serviceType: String): OcrService {
             return when (serviceType) {
                 OcrServiceType.MLKIT -> MLKitOcrService(context)
-                OcrServiceType.CLOUD -> CloudOcrService(context)
+                "cloud" -> {
+                    // Handle deprecated cloud service type for backward compatibility
+                    Log.w("OcrService", "Cloud OCR Service is deprecated. Using MLKit instead.")
+                    MLKitOcrService(context)
+                }
                 OcrServiceType.GOOGLE_LENS -> GoogleLensOcrService(context)
+                OcrServiceType.TESSERACT -> TesseractOcrService(context)
                 // Add more service types here as they are implemented
                 else -> MLKitOcrService(context) // Default fallback
             }
@@ -68,7 +74,8 @@ interface OcrService {
  */
 object OcrServiceType {
     const val MLKIT = "mlkit"
-    const val CLOUD = "cloud"
+    // Removed Cloud OCR Service type
     const val GOOGLE_LENS = "glens"
+    const val TESSERACT = "tesseract"
     // Add more service types as they are implemented
 }

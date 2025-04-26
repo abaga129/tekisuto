@@ -44,13 +44,7 @@
             app:iconSpaceReserved="false"
             app:useSimpleSummaryProvider="true" />
             
-        <EditTextPreference
-            android:key="cloud_ocr_api_key"
-            android:title="@string/cloud_ocr_api_key_title"
-            android:summary="@string/cloud_ocr_api_key_summary"
-            android:dependency="ocr_service"
-            app:iconSpaceReserved="false"
-            app:useSimpleSummaryProvider="false" />
+        <!-- Removed Cloud OCR API Key preference -->
 
         <ListPreference
             android:key="ocr_language"

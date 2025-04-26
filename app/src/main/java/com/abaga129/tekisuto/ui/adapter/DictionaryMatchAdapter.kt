@@ -19,10 +19,12 @@ import androidx.recyclerview.widget.RecyclerView
 import android.content.res.ColorStateList
 import android.util.TypedValue
 import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
+import com.abaga129.tekisuto.ui.settings.SettingsActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
@@ -362,6 +364,51 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             if (audioEnabled && entry.term.isNotBlank()) {
                 playAudioButton.visibility = View.VISIBLE
                 playAudioButton.setOnClickListener {
+                    // IMPORTANT: Always make a DIRECT check of the API key to work around any caching issues
+                    // Get preferences directly
+                    val prefManager = PreferenceManager.getDefaultSharedPreferences(itemView.context)
+                    val azureKey = prefManager.getString("azure_speech_key", "")
+                    
+                    // If no key in preferences, try app_preferences as backup
+                    val hasApiKey = if (azureKey.isNullOrEmpty()) {
+                        // Fallback to app_preferences
+                        val appPrefs = itemView.context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+                        val backupKey = appPrefs.getString("azure_speech_key", "")
+                        !backupKey.isNullOrEmpty()
+                    } else {
+                        true
+                    }
+                    
+                    // Log for debugging
+                    if (!hasApiKey) {
+                        Log.d("DictionaryMatchAdapter", "DIRECT CHECK: Azure API key not found in any preferences")
+                    } else {
+                        Log.d("DictionaryMatchAdapter", "DIRECT CHECK: Azure API key found in preferences")
+                    }
+                    
+                    // Check if we have a key either directly or through the service
+                    if (!hasApiKey && (speechService?.isApiKeyConfigured() != true)) {
+                        // Show error toast and log it
+                        Log.e("DictionaryMatchAdapter", "❌ Azure API key not found or empty")
+                        Toast.makeText(
+                            itemView.context,
+                            "Failed to generate audio. Check Azure API key in settings.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        
+                        // Open settings activity to configure Azure Speech API
+                        try {
+                            val intent = Intent(itemView.context, SettingsActivity::class.java)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            itemView.context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("DictionaryMatchAdapter", "Failed to open settings: ${e.message}")
+                        }
+                        return@setOnClickListener
+                    }
+                    
+                    // Since we've verified the key exists, continue with audio generation
+                    
                     // Determine language from the dictionary entry or default to Japanese if unknown
                     val language = guessLanguageFromEntry(entry)
                     
@@ -373,7 +420,7 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                     ).show()
                     
                     // Add debug logging
-                    Log.e("DictionaryMatchAdapter", "🔊 Play button clicked for term: '${entry.term}', language: $language")
+                    Log.d("DictionaryMatchAdapter", "🔊 Play button clicked for term: '${entry.term}', language: $language")
                     
                     // Generate and play audio through listener
                     audioListener?.onPlayAudio(entry.term, language)
@@ -402,33 +449,49 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
          */
         private fun guessLanguageFromEntry(entry: DictionaryEntryEntity): String {
             // Log detailed information for debugging
-            Log.e("DictionaryAdapter", "Determining language for term: '${entry.term}', dictionaryId: ${entry.dictionaryId}")
+            Log.d("DictionaryAdapter", "Determining language for term: '${entry.term}', dictionaryId: ${entry.dictionaryId}")
             
-            // Use DictionaryLanguageHelper to get the language
+            // First, check if this is Japanese text by examining the characters
+            val entryText = entry.term + " " + entry.reading
+            
+            // Check if the text contains Japanese characters (Hiragana, Katakana, or Kanji)
+            if (entryText.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
+                Log.d("DictionaryAdapter", "Text contains Japanese characters - using Japanese language")
+                return "ja"  // Return Japanese code directly
+            }
+            
+            // Only use the stored language if text doesn't have Japanese characters
             val languageHelper = com.abaga129.tekisuto.util.DictionaryLanguageHelper(itemView.context)
             val sourceLanguage = languageHelper.getSourceLanguage(entry.dictionaryId)
             
             if (sourceLanguage != null) {
-                Log.e("DictionaryAdapter", "Using stored source language for dictionary ${entry.dictionaryId}: $sourceLanguage")
+                Log.d("DictionaryAdapter", "Using stored source language for dictionary ${entry.dictionaryId}: $sourceLanguage")
+                
+                // OVERRIDE: If we're dealing with Japanese characters but the system thinks it's Spanish
+                if (sourceLanguage == "es" && 
+                    entryText.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
+                    Log.d("DictionaryAdapter", "Overriding incorrect Spanish language code for Japanese text")
+                    return "ja"
+                }
+                
                 return sourceLanguage // Already mapped to Azure format by the helper
             }
             
             // Try to determine language from text patterns
-            val text = entry.term + " " + entry.reading
             
             // Check for CJK languages first
-            if (text.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
+            if (entryText.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
                 // Japanese (Hiragana, Katakana, Kanji)
                 return "ja"
             }
             
-            if (text.matches(Regex(".*[\u4E00-\u9FFF]+.*")) && 
-                !text.contains("[\u3040-\u309F\u30A0-\u30FF]")) {
+            if (entryText.matches(Regex(".*[\u4E00-\u9FFF]+.*")) && 
+                !entryText.contains("[\u3040-\u309F\u30A0-\u30FF]")) {
                 // Chinese (Han characters without Japanese kana)
                 return "zh"
             }
             
-            if (text.matches(Regex(".*[\uAC00-\uD7A3]+.*"))) {
+            if (entryText.matches(Regex(".*[\uAC00-\uD7A3]+.*"))) {
                 // Korean (Hangul)
                 return "ko"
             }
@@ -436,36 +499,36 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             // For Latin-script languages, look for distinctive patterns
             return when {
                 // Spanish - check for distinctive Spanish characters
-                text.contains("á") || text.contains("é") || 
-                text.contains("í") || text.contains("ó") || 
-                text.contains("ú") || text.contains("ü") || 
-                text.contains("ñ") || text.contains("¿") || 
-                text.contains("¡") || entry.term.endsWith("ción") || 
+                entryText.contains("á") || entryText.contains("é") || 
+                entryText.contains("í") || entryText.contains("ó") || 
+                entryText.contains("ú") || entryText.contains("ü") || 
+                entryText.contains("ñ") || entryText.contains("¿") || 
+                entryText.contains("¡") || entry.term.endsWith("ción") || 
                 entry.term.endsWith("dad") -> "es"
                 
                 // French - check for distinctive French patterns
-                text.contains("à") || text.contains("â") || 
-                text.contains("ç") || text.contains("é") || 
-                text.contains("è") || text.contains("ê") || 
-                text.contains("ë") || text.contains("î") || 
-                text.contains("ï") || text.contains("ô") || 
-                text.contains("ù") || text.contains("û") || 
-                text.contains("ü") || entry.term.endsWith("eau") -> "fr"
+                entryText.contains("à") || entryText.contains("â") || 
+                entryText.contains("ç") || entryText.contains("é") || 
+                entryText.contains("è") || entryText.contains("ê") || 
+                entryText.contains("ë") || entryText.contains("î") || 
+                entryText.contains("ï") || entryText.contains("ô") || 
+                entryText.contains("ù") || entryText.contains("û") || 
+                entryText.contains("ü") || entry.term.endsWith("eau") -> "fr"
                 
                 // German - check for distinctive German characters/patterns
-                text.contains("ä") || text.contains("ö") || 
-                text.contains("ü") || text.contains("ß") ||
+                entryText.contains("ä") || entryText.contains("ö") || 
+                entryText.contains("ü") || entryText.contains("ß") ||
                 entry.term.endsWith("ung") || entry.term.endsWith("heit") -> "de"
                 
                 // Italian - check for distinctive Italian patterns
-                text.contains("à") || text.contains("è") || 
-                text.contains("é") || text.contains("ì") || 
-                text.contains("í") || text.contains("ò") || 
-                text.contains("ó") || text.contains("ù") ||
+                entryText.contains("à") || entryText.contains("è") || 
+                entryText.contains("é") || entryText.contains("ì") || 
+                entryText.contains("í") || entryText.contains("ò") || 
+                entryText.contains("ó") || entryText.contains("ù") ||
                 entry.term.endsWith("zione") || entry.term.endsWith("ità") -> "it"
                 
                 // Russian - check for Cyrillic
-                text.contains(Regex(".*[А-Яа-я]+.*").pattern) -> "ru"
+                entryText.contains(Regex(".*[А-Яа-я]+.*").pattern) -> "ru"
                 
                 // Default to English for other Latin scripts
                 else -> "en"

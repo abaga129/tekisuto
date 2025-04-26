@@ -9,7 +9,7 @@ import android.view.View
 import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.abaga129.tekisuto.R
@@ -24,7 +24,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * Activity that allows the user to select which apps should show the floating button
  */
-class AppWhitelistActivity : AppCompatActivity(), CoroutineScope {
+class AppWhitelistActivity : BaseEdgeToEdgeActivity(), CoroutineScope {
     companion object {
         private const val TAG = "AppWhitelistActivity"
     }
@@ -45,6 +45,9 @@ class AppWhitelistActivity : AppCompatActivity(), CoroutineScope {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Starting activity initialization")
         setContentView(R.layout.activity_app_whitelist)
+        
+        // Apply edge-to-edge insets
+        applyInsetsToView(R.id.root_layout)
         
         // Set up toolbar
         setSupportActionBar(findViewById(R.id.toolbar))

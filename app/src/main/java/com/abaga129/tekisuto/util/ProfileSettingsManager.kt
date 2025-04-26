@@ -29,7 +29,7 @@ class ProfileSettingsManager(private val context: Context) {
         const val OCR_LANGUAGE = "ocr_language"
         const val TRANSLATE_OCR_TEXT = "translate_ocr_text"
         const val TRANSLATE_TARGET_LANGUAGE = "translate_target_language"
-        const val CLOUD_OCR_API_KEY = "cloud_ocr_api_key"
+        // Removed Cloud OCR API key constant
         
         // Screenshot Settings
         const val ENABLE_LONG_PRESS_CAPTURE = "enable_long_press_capture"
@@ -56,42 +56,19 @@ class ProfileSettingsManager(private val context: Context) {
         // Store current profile ID
         editor.putLong(CURRENT_PROFILE_ID, profile.id)
         
-        // Check if there's a pending OCR service change that should take precedence
-        val currentOcrService = prefs.getString(OCR_SERVICE, null)
-        val profileOcrService = profile.ocrService
+        // Always prioritize profile settings over SharedPreferences
+        // OCR Settings
+        Log.d(TAG, "Setting OCR Service to: ${profile.ocrService}")
+        editor.putString(OCR_SERVICE, profile.ocrService)
         
-        if (currentOcrService != null && currentOcrService != profileOcrService) {
-            Log.d(TAG, "OCR Service changed in preferences (${currentOcrService}) differs from profile (${profileOcrService})")
-            Log.d(TAG, "Keeping current OCR Service setting: ${currentOcrService}")
-            
-            // No need to update OCR service in preferences if it's already set
-        } else {
-            // OCR Settings
-            Log.d(TAG, "Setting OCR Service to: ${profile.ocrService}")
-            editor.putString(OCR_SERVICE, profile.ocrService)
-        }
+        // OCR Language
+        Log.d(TAG, "Setting OCR Language to: ${profile.ocrLanguage}")
+        editor.putString(OCR_LANGUAGE, profile.ocrLanguage)
         
-        // Check if there's a pending OCR language change that should take precedence
-        val currentOcrLanguage = prefs.getString(OCR_LANGUAGE, null)
-        val profileOcrLanguage = profile.ocrLanguage
-        
-        if (currentOcrLanguage != null && currentOcrLanguage != profileOcrLanguage) {
-            Log.d(TAG, "OCR Language changed in preferences (${currentOcrLanguage}) differs from profile (${profileOcrLanguage})")
-            Log.d(TAG, "Keeping current OCR Language setting: ${currentOcrLanguage}")
-            
-            // No need to update OCR language in preferences if it's already set
-        } else {
-            // OCR Language
-            Log.d(TAG, "Setting OCR Language to: ${profile.ocrLanguage}")
-            editor.putString(OCR_LANGUAGE, profile.ocrLanguage)
-        }
         editor.putBoolean(TRANSLATE_OCR_TEXT, profile.translateOcrText)
         editor.putString(TRANSLATE_TARGET_LANGUAGE, profile.translateTargetLanguage)
         
-        // Cloud OCR settings (if using cloud service)
-        if (profile.ocrService == "cloud") {
-            editor.putString(CLOUD_OCR_API_KEY, profile.cloudOcrApiKey ?: "")
-        }
+        // Removed Cloud OCR settings
         
         // Screenshot Settings
         editor.putBoolean(ENABLE_LONG_PRESS_CAPTURE, profile.enableLongPressCapture)
@@ -150,7 +127,7 @@ class ProfileSettingsManager(private val context: Context) {
         val translateTargetLanguage = prefs.getString(TRANSLATE_TARGET_LANGUAGE, "en") ?: "en"
         
         Log.d(TAG, "Extracting settings - OCR Service: $ocrService, OCR Language: $ocrLanguage")
-        val cloudOcrApiKey = prefs.getString(CLOUD_OCR_API_KEY, "") ?: ""
+        // Removed Cloud OCR API key
         val enableLongPressCapture = prefs.getBoolean(ENABLE_LONG_PRESS_CAPTURE, true)
         val longPressDuration = prefs.getInt(LONG_PRESS_DURATION, 500)
         val enableAudio = prefs.getBoolean(ENABLE_AUDIO, true)
@@ -183,7 +160,7 @@ class ProfileSettingsManager(private val context: Context) {
             ocrLanguage = ocrLanguage,
             translateOcrText = translateOcrText,
             translateTargetLanguage = translateTargetLanguage,
-            cloudOcrApiKey = cloudOcrApiKey,
+            // Removed Cloud OCR API key value
             enableLongPressCapture = enableLongPressCapture,
             longPressDuration = longPressDuration,
             enableAudio = enableAudio,
@@ -207,9 +184,21 @@ class ProfileSettingsManager(private val context: Context) {
     
     /**
      * Get the current profile ID from preferences
+     * If no profile ID is found, returns -1L
      */
     fun getCurrentProfileId(): Long {
-        return prefs.getLong(CURRENT_PROFILE_ID, -1L)
+        val profileId = prefs.getLong(CURRENT_PROFILE_ID, -1L)
+        Log.d(TAG, "Getting current profile ID from preferences: $profileId")
+        return profileId
+    }
+    
+    /**
+     * Set the current profile ID in preferences
+     * This ensures that even if the saved profile ID is lost, we can recover it
+     */
+    fun setCurrentProfileId(profileId: Long) {
+        Log.d(TAG, "Setting current profile ID in preferences: $profileId")
+        prefs.edit().putLong(CURRENT_PROFILE_ID, profileId).apply()
     }
     
     /**

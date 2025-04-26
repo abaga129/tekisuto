@@ -101,8 +101,9 @@ class OcrHelper(private val context: Context) {
     private fun getServiceClassName(serviceType: String): String {
         return when (serviceType) {
             OcrServiceType.MLKIT -> "mlkitocrservice"
-            OcrServiceType.CLOUD -> "cloudocrservice"
+            // Removed Cloud OCR Service
             OcrServiceType.GOOGLE_LENS -> "googlelensocrservice"
+            OcrServiceType.TESSERACT -> "tesseractocrservice"
             // Add more service types as they are implemented
             else -> "mlkitocrservice" // Default
         }

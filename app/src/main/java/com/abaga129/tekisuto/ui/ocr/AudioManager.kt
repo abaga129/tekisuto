@@ -51,22 +51,29 @@ class AudioManager(
             return
         }
 
-        // Check for Azure Speech API key
+        // Check if API key is configured first using the isApiKeyConfigured method in SpeechService
+        if (!speechService.isApiKeyConfigured()) {
+            Log.e(TAG, "❌ [REQ-$requestId] Azure API key not configured")
+            Toast.makeText(
+                context,
+                "Failed to generate audio. Check Azure API key in settings.",
+                Toast.LENGTH_LONG
+            ).show()
+            
+            // Open settings activity
+            val intent = Intent(context, SettingsActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            return
+        }
+
+        // Get API key and region from preferences for logging purposes
         val apiKey = sharedPrefs.getString("azure_speech_key", "") ?: ""
         val region = sharedPrefs.getString("azure_speech_region", "eastus") ?: "eastus"
 
         // Add detailed logging for debugging
         Log.e(TAG, "🔈 [REQ-$requestId] Audio request - Term: '$term', Language: '$language'")
         Log.e(TAG, "🔑 [REQ-$requestId] API config - Key present: ${apiKey.isNotEmpty()}, Region: $region")
-
-        if (apiKey.isEmpty()) {
-            Log.e(TAG, "❌ [REQ-$requestId] Missing API key")
-            Toast.makeText(context, R.string.audio_generation_missing_api_key, Toast.LENGTH_LONG).show()
-            // Open settings activity
-            val intent = Intent(context, SettingsActivity::class.java)
-            context.startActivity(intent)
-            return
-        }
 
         // Generate and play audio
         lifecycleScope.launch {
@@ -144,6 +151,15 @@ class AudioManager(
                             "Failed to generate audio. Check Azure API key in settings.",
                             Toast.LENGTH_LONG
                         ).show()
+                        
+                        // Open settings activity if audio generation failed
+                        try {
+                            val intent = Intent(context, SettingsActivity::class.java)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to open settings: ${e.message}")
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -169,6 +185,11 @@ class AudioManager(
      * @return The audio file or null if generation failed
      */
     suspend fun getAudioFile(term: String, language: String): File? {
+        // Check if API key is configured
+        if (!speechService.isApiKeyConfigured()) {
+            return null
+        }
+        
         // Check if we already have audio for this term
         val cacheKey = "${language}_${term}"
         var audioFile = audioCache[cacheKey]
@@ -188,33 +209,83 @@ class AudioManager(
      * Determine the language of an entry for audio generation
      */
     fun determineLanguage(entry: DictionaryEntryEntity, ocrLanguage: String?): String {
-        // First check the OCR language setting
-        ocrLanguage?.let {
-            return when (it) {
+        // First priority: Check if text contains Japanese, Chinese, or Korean characters
+        val text = entry.term + " " + entry.reading
+        
+        // Check for Japanese characters (Hiragana, Katakana, Kanji)
+        if (text.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
+            Log.d(TAG, "Text contains Japanese characters, using Japanese language code")
+            return "ja"
+        }
+        
+        // Check for Chinese characters (mainly Han characters without Japanese-specific characters)
+        if (text.matches(Regex(".*[\u4E00-\u9FFF]+.*")) && 
+            !text.contains(Regex("[\u3040-\u309F\u30A0-\u30FF]"))) {
+            Log.d(TAG, "Text contains Chinese characters, using Chinese language code")
+            return "zh"
+        }
+        
+        // Check for Korean characters (Hangul)
+        if (text.matches(Regex(".*[\uAC00-\uD7A3]+.*"))) {
+            Log.d(TAG, "Text contains Korean characters, using Korean language code")
+            return "ko"
+        }
+        
+        // Second priority: Use OCR language setting if available
+        if (ocrLanguage != null) {
+            return when (ocrLanguage) {
                 "japanese" -> "ja"
                 "chinese" -> "zh"
                 "korean" -> "ko"
+                "spanish" -> "es"
+                "french" -> "fr"
+                "german" -> "de"
+                "italian" -> "it"
+                "russian" -> "ru"
                 else -> "en"
             }
         }
-
-        // If OCR language is not set, guess from content
-        val text = entry.term + " " + entry.reading
-
-        return when {
-            // Check for Japanese (Hiragana, Katakana, Kanji)
-            text.contains(Regex("[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")) -> "ja"
-
-            // Check for Chinese (mainly Han characters without Japanese-specific characters)
-            text.contains(Regex("[\u4E00-\u9FFF]")) &&
-                    !text.contains(Regex("[\u3040-\u309F\u30A0-\u30FF]")) -> "zh"
-
-            // Check for Korean (Hangul)
-            text.contains(Regex("[\uAC00-\uD7A3]")) -> "ko"
-
-            // Default to English
-            else -> "en"
+        
+        // Third priority: Check for other language-specific characters in text
+        
+        // Spanish character detection
+        if (text.contains("á") || text.contains("é") || 
+            text.contains("í") || text.contains("ó") || 
+            text.contains("ú") || text.contains("ü") || 
+            text.contains("ñ") || text.contains("¿") || 
+            text.contains("¡")) {
+            Log.d(TAG, "Text contains Spanish characters, using Spanish language code")
+            return "es"
         }
+        
+        // French character detection
+        if (text.contains("à") || text.contains("â") || 
+            text.contains("ç") || text.contains("é") || 
+            text.contains("è") || text.contains("ê") || 
+            text.contains("ë") || text.contains("î") || 
+            text.contains("ï") || text.contains("ô") || 
+            text.contains("ù") || text.contains("û") || 
+            text.contains("ü")) {
+            Log.d(TAG, "Text contains French characters, using French language code")
+            return "fr"
+        }
+        
+        // German character detection
+        if (text.contains("ä") || text.contains("ö") || 
+            text.contains("ü") || text.contains("ß")) {
+            Log.d(TAG, "Text contains German characters, using German language code")
+            return "de"
+        }
+        
+        // Russian character detection (Cyrillic)
+        if (text.matches(Regex(".*[А-Яа-я]+.*"))) {
+            Log.d(TAG, "Text contains Russian characters, using Russian language code")
+            return "ru"
+        }
+        
+        // Default to English if no specific language characteristics are detected
+        Log.d(TAG, "No specific language detected, defaulting to English")
+        return "en"
     }
     
     /**

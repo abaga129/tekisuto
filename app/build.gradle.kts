@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 30 // Updated to API 30 (Android 11) for screenshot functionality
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9-alpha"
+        versionCode = 11
+        versionName = "0.11-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -132,6 +132,9 @@ dependencies {
     
     // Add multidex support
     implementation("androidx.multidex:multidex:2.0.1")
+    
+    // Tesseract OCR
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.8.0")
     
     // Japanese text tokenization
     implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")

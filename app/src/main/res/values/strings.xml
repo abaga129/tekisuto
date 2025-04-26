@@ -23,8 +23,7 @@
     <string name="ocr_settings_title" tools:ignore="DuplicateCrowdInStrings">OCR Settings</string>
     <string name="ocr_service_title">OCR Service</string>
     <string name="ocr_service_summary">Select the OCR engine to use</string>
-    <string name="cloud_ocr_api_key_title">Cloud OCR API Key</string>
-    <string name="cloud_ocr_api_key_summary">Enter your Cloud OCR service API key</string>
+    <!-- Removed Cloud OCR API Key strings -->
     <string name="ocr_language_title">OCR Language</string>
     <string name="ocr_language_summary">Select the language for text recognition</string>
     <string name="ocr_language_default">english</string>
@@ -32,14 +31,14 @@
     
     <string-array name="ocr_service_entries">
         <item>Google ML Kit</item>
-        <item>Cloud OCR Service</item>
-        <item>Google Lens</item>
+        <item>Google Lens (expiremental)</item>
+        <item>Tesseract OCR</item>
     </string-array>
     
     <string-array name="ocr_service_values">
         <item>mlkit</item>
-        <item>cloud</item>
         <item>glens</item>
+        <item>tesseract</item>
     </string-array>
     
     <!-- Screenshot Settings -->

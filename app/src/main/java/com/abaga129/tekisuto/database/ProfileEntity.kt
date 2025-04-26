@@ -22,7 +22,8 @@ data class ProfileEntity(
     val ocrLanguage: String = "latin",
     val translateOcrText: Boolean = true,
     val translateTargetLanguage: String = "en",
-    val cloudOcrApiKey: String = "",
+    // Deprecated: Kept for database compatibility
+    val cloudOcrApiKey: String = "", // Cloud OCR service has been removed
     
     // Screenshot settings
     val enableLongPressCapture: Boolean = true,
@@ -86,6 +87,7 @@ interface ProfileDao {
     @androidx.room.Query("UPDATE profiles SET ocrService = :ocrService WHERE id = :id")
     suspend fun updateOcrService(id: Long, ocrService: String)
     
+    // Deprecated: Kept for database compatibility
     @androidx.room.Query("UPDATE profiles SET cloudOcrApiKey = :apiKey WHERE id = :id")
     suspend fun updateCloudOcrApiKey(id: Long, apiKey: String)
     

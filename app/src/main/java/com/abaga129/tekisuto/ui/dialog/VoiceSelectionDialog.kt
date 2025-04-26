@@ -193,9 +193,21 @@ class VoiceSelectionDialog(
                 
                 // Filter voices to appropriate language if specified
                 val filteredVoices = if (languageCode.isNotEmpty()) {
-                    voices.filter { it.shortName.startsWith(languageCode, ignoreCase = true) }
+                    // Improved filtering to ensure we get language-specific voices
+                    voices.filter { 
+                        it.shortName.startsWith(languageCode, ignoreCase = true) || 
+                        it.locale.startsWith(languageCode, ignoreCase = true) 
+                    }
                 } else {
                     voices
+                }
+                
+                // Log the filtering results for debugging
+                android.util.Log.d("VoiceSelectionDialog", "Language code: $languageCode")
+                android.util.Log.d("VoiceSelectionDialog", "Total voices: ${voices.size}")
+                android.util.Log.d("VoiceSelectionDialog", "Filtered voices: ${filteredVoices.size}")
+                if (filteredVoices.isNotEmpty()) {
+                    android.util.Log.d("VoiceSelectionDialog", "First voice: ${filteredVoices[0].name}, locale: ${filteredVoices[0].locale}")
                 }
                 
                 // Update UI based on results

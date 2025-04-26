@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33"/>
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33"/>
     
-    <!-- For ML Kit OCR functionality -->
+    <!-- For ML Kit OCR and Tesseract functionalities -->
     <uses-permission android:name="android.permission.INTERNET" />
     
     <!-- For AnkiDroid integration and app whitelist -->

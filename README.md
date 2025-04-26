@@ -4,6 +4,17 @@
 
 Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for language learners. It lets you easily scan text from any app, look up words in your dictionaries, and export them to AnkiDroid for flashcard study.
 
+## OCR Backends
+
+Tekisuto offers multiple OCR (Optical Character Recognition) options to suit your needs:
+
+- **ML Kit OCR**: Fast, on-device recognition powered by Google's ML Kit
+- **Cloud OCR**: Higher accuracy recognition using cloud-based services (requires API key)
+- **Google Lens**: Leverages Google's powerful visual search technology for text recognition
+- **Tesseract OCR**: Open-source OCR engine with excellent multilingual support
+
+For detailed information about the Tesseract OCR backend, see [Tesseract OCR Backend](TESSERACT_OCR_BACKEND.md).
+
 ## Features
 
 - **OCR Text Extraction**: Capture text from any app that doesn't block screenshots
@@ -14,7 +25,7 @@ Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for langu
 - **Smart Search Results**: Exact matches are prioritized at the top of search results
 - **Visual Dictionary Management**: Dictionary entries show which words have been exported to Anki
 - **Text Area Selection**: Precisely crop the area containing text you want to scan
-- **Multi-language Support**: Works with Latin, Chinese, Japanese, Korean, Devanagari and other scripts
+- **Multiple OCR Backends**: Choose between ML Kit, Cloud OCR, Google Lens, and Tesseract OCR
 - **Anki Deck Import**: Import words from Anki packages (.apkg files) to track already studied vocabulary
 - **Privacy-focused**: All processing happens on-device with no cloud services required
 

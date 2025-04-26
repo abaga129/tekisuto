@@ -15,6 +15,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import androidx.preference.SeekBarPreference
 import com.abaga129.tekisuto.R
+import com.abaga129.tekisuto.database.ProfileEntity
 import com.abaga129.tekisuto.ui.dialog.VoiceSelectionDialog
 import com.abaga129.tekisuto.ui.profile.ProfileManagerActivity
 import com.abaga129.tekisuto.util.ProfileSettingsManager
@@ -92,19 +93,7 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
             }
         }
         
-        // Cloud OCR API key preference
-        findPreference<EditTextPreference>("cloud_ocr_api_key")?.let { apiKeyPref ->
-            // Hide API key in summary
-            apiKeyPref.summaryProvider = Preference.SummaryProvider<EditTextPreference> { preference ->
-                val text = preference.text
-                if (text.isNullOrEmpty()) {
-                    getString(R.string.cloud_ocr_api_key_summary)
-                } else {
-                    // Show asterisks instead of the actual key
-                    "********" + text.takeLast(4)
-                }
-            }
-        }
+        // Cloud OCR API key preference removed
         
         // OCR language preference
         findPreference<ListPreference>("ocr_language")?.let { languagePref ->
@@ -376,10 +365,11 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
             updateWhitelistSummary(whitelistPref)
         }
         
-        // Reset initial setup flag after a short delay
+        // Reset initial setup flag after a longer delay to ensure all UI operations are complete
         Handler(Looper.getMainLooper()).postDelayed({
             isInitialSetup = false
-        }, 500)
+            Log.d(TAG, "Initial setup complete, settings changes will now be saved automatically")
+        }, 1000)
     }
     
     override fun onPause() {
@@ -401,20 +391,20 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
                     // Get a reference to the settings manager
                     val settingsManager = ProfileSettingsManager(requireContext())
                     
-                    // Save OCR service if it exists
+                    // Always save OCR service from SharedPreferences to the profile
                     if (currentOcrService != null) {
                         Log.d(TAG, "onPause: Saving OCR service: $currentOcrService")
-                        // Save the OCR service change to SharedPreferences
+                        // Save the OCR service change to SharedPreferences (redundant but safe)
                         settingsManager.saveOcrServiceChange(currentOcrService, currentProfile.id)
                         
                         // Also update the profile directly via the ViewModel
                         profileViewModel.updateProfileWithService(currentProfile.copy(ocrService = currentOcrService), currentOcrService)
                     }
                     
-                    // Save OCR language if it exists
+                    // Always save OCR language from SharedPreferences to the profile
                     if (currentOcrLanguage != null) {
                         Log.d(TAG, "onPause: Saving OCR language: $currentOcrLanguage")
-                        // Save the OCR language change to SharedPreferences
+                        // Save the OCR language change to SharedPreferences (redundant but safe)
                         settingsManager.saveOcrLanguageChange(currentOcrLanguage, currentProfile.id)
                         
                         // Also update the profile directly via the ViewModel
@@ -429,8 +419,15 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
                 }
             }
             
-            // Save all settings
-            saveCurrentSettings()
+            // Force a save of all settings to profile
+            try {
+                Log.d(TAG, "onPause: Force saving all settings to profile")
+                saveCurrentSettings()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error force saving settings in onPause", e)
+            }
+        } else {
+            Log.d(TAG, "onPause: Skipping settings save as initial setup is still in progress")
         }
     }
     
@@ -457,15 +454,100 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
         
         Log.d(TAG, "Preference changed: $key")
         
-        // Optional: automatically save to profile on certain changes
-        /*
-        when (key) {
-            "ocr_service", "ocr_language", "translate_ocr_text", "translate_target_language" -> {
-                // Auto-save after OCR settings change
-                saveCurrentSettings()
+        try {
+            // Get the current profile
+            val currentProfile = profileViewModel.currentProfile.value
+            
+            if (currentProfile != null) {
+                // We have a profile, handle the change with it
+                when (key) {
+                    "ocr_service" -> {
+                        // Get the new OCR service value
+                        val serviceType = sharedPreferences?.getString(key, "mlkit") ?: "mlkit"
+                        Log.d(TAG, "SharedPreference changed: OCR service to $serviceType")
+                        
+                        // Update the profile with the new service
+                        profileViewModel.updateProfileWithService(currentProfile, serviceType)
+                    }
+                    "ocr_language" -> {
+                        // Get the new OCR language value
+                        val language = sharedPreferences?.getString(key, "latin") ?: "latin"
+                        Log.d(TAG, "SharedPreference changed: OCR language to $language")
+                        
+                        // Update the profile with the new language
+                        profileViewModel.updateProfileWithLanguage(currentProfile, language)
+                    }
+                    else -> {
+                        // For all other settings, save to the profile
+                        Log.d(TAG, "Auto-saving setting change for: $key")
+                        profileViewModel.saveCurrentSettings()
+                    }
+                }
+            } else {
+                // No current profile, try to get one via sync methods
+                val profileId = preferenceManager.sharedPreferences?.getLong("current_profile_id", -1L) ?: -1L
+                
+                if (profileId != -1L) {
+                    // Try to get profile by ID
+                    val profileById = profileViewModel.getProfileByIdSync(profileId)
+                    
+                    if (profileById != null) {
+                        // We found a profile, handle the change with it
+                        handlePreferenceChangeWithProfile(key, sharedPreferences, profileById)
+                    } else {
+                        // Try default profile
+                        val defaultProfile = profileViewModel.getDefaultProfileSync()
+                        
+                        if (defaultProfile != null) {
+                            // We found the default profile, handle the change with it
+                            handlePreferenceChangeWithProfile(key, sharedPreferences, defaultProfile)
+                        } else {
+                            // Last resort - force save
+                            Log.d(TAG, "No profile found, forcing save of current settings")
+                            profileViewModel.saveCurrentSettings()
+                        }
+                    }
+                } else {
+                    // No profile ID, try to use saveCurrentSettings which has its own fallbacks
+                    Log.d(TAG, "No profile ID available, forcing save of current settings")
+                    profileViewModel.saveCurrentSettings()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling preference change: ${e.message}")
+            // Last resort - just try to save
+            try {
+                profileViewModel.saveCurrentSettings()
+            } catch (innerEx: Exception) {
+                Log.e(TAG, "Final attempt to save settings failed: ${innerEx.message}")
             }
         }
-        */
+    }
+    
+    /**
+     * Helper method to handle preference changes with a specific profile
+     */
+    private fun handlePreferenceChangeWithProfile(
+        key: String, 
+        sharedPreferences: SharedPreferences?, 
+        profile: ProfileEntity
+    ) {
+        when (key) {
+            "ocr_service" -> {
+                val serviceType = sharedPreferences?.getString(key, "mlkit") ?: "mlkit"
+                Log.d(TAG, "Handling OCR service change to $serviceType with profile ${profile.id}")
+                profileViewModel.updateProfileWithService(profile, serviceType)
+            }
+            "ocr_language" -> {
+                val language = sharedPreferences?.getString(key, "latin") ?: "latin"
+                Log.d(TAG, "Handling OCR language change to $language with profile ${profile.id}")
+                profileViewModel.updateProfileWithLanguage(profile, language)
+            }
+            else -> {
+                // Save current settings which will use the profile
+                profileViewModel.saveCurrentSettings()
+            }
+        }
     }
     
     /**
@@ -521,7 +603,7 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
     
     /**
      * Convert OCR language code to speech language code
-     * For Latin script, return an empty string to show all voices
+     * For Latin script languages, use specific language codes instead of empty string
      */
     private fun convertOcrLanguageToSpeechLanguage(ocrLanguage: String): String {
         return when (ocrLanguage) {
@@ -529,8 +611,15 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
             "chinese" -> "zh"
             "korean" -> "ko"
             "devanagari" -> "hi" // Hindi
-            "latin" -> "" // Empty string will show all voices for Latin script
-            else -> "en" // Default to English for other scripts
+            "spanish" -> "es"  // Spanish
+            "french" -> "fr"   // French
+            "german" -> "de"   // German
+            "italian" -> "it"  // Italian
+            "portuguese" -> "pt" // Portuguese
+            "russian" -> "ru"  // Russian
+            "arabic" -> "ar"   // Arabic
+            "latin" -> ""      // Empty string will show all voices for generic Latin script
+            else -> "en"       // Default to English for other scripts
         }
     }
     
@@ -564,13 +653,12 @@ class SettingsFragment : PreferenceFragmentCompat(), CoroutineScope,
     }
     
     /**
-     * Update the visibility of the Cloud OCR API key preference based on the selected service
+     * Update the visibility of service-specific preferences based on the selected service
+     * Note: Cloud OCR API key handling has been removed
      */
     private fun updateCloudOcrApiKeyVisibility(serviceType: String) {
-        findPreference<EditTextPreference>("cloud_ocr_api_key")?.let { apiKeyPref ->
-            apiKeyPref.isVisible = serviceType == "cloud"
-            apiKeyPref.dependency = if (serviceType == "cloud") null else "ocr_service"
-        }
+        // Cloud OCR API key preference handling removed
+        // This function is kept for backwards compatibility but doesn't do anything now
     }
     
     override fun onDestroy() {

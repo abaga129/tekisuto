@@ -24,7 +24,11 @@ The implementation is contained within `GoogleLensOcrService.kt` and integrates 
    - Added proper header handling for Google Lens requests
    - Created JSON parsing code that follows the nested structure of Google Lens responses
    - Added fallback parsing logic for robustness
-   - Included image preprocessing to optimize for OCR quality
+   - Enhanced image preprocessing algorithm that:
+     - Ensures images are under 3,000,000 pixels total (width × height)
+     - Maintains aspect ratio while resizing
+     - Uses high-quality scaling for better text recognition
+     - Optimizes PNG compression for Google Lens processing
 
 2. **Added UI Integration**:
    - Added "Google Lens" to the OCR service options in `strings.xml`
@@ -49,6 +53,7 @@ To use the Google Lens OCR backend:
 - It includes fallback mechanisms for robustness
 - It has proper error handling and user feedback
 - It implements all required methods from the OcrService interface
+- The image preprocessing algorithm is optimized for OCR text recognition
 
 ## Limitations
 
@@ -66,5 +71,5 @@ The Google Lens backend can be tested by:
 
 Performance may vary based on:
 - Text language
-- Image quality
+- Image quality and resolution
 - Internet connection
