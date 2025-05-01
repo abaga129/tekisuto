@@ -3,6 +3,7 @@ package com.abaga129.tekisuto.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -39,6 +40,7 @@ import kotlinx.coroutines.withContext
 import androidx.room.Room
 import com.abaga129.tekisuto.BuildConfig
 import com.abaga129.tekisuto.database.AppDatabase
+import com.abaga129.tekisuto.service.AccessibilityOcrService
 
 /**
  * Activity that displays OCR results and provides dictionary lookup functionality.
@@ -79,6 +81,7 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
     private var fullOcrText: String = ""
     private var profileId: Long = -1L
     private var ocrLanguage: String? = null
+    private var shouldRestoreFloatingButton: Boolean = false
     
     private val TAG: String = "OCRResultActivity"
 
@@ -124,6 +127,11 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
         super.onDestroy()
         // Stop any playing audio
         audioManager.stopAudio()
+        
+        // Ensure floating button is restored when activity is destroyed
+        if (shouldRestoreFloatingButton && !isFinishing) {
+            restoreFloatingButton()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -251,6 +259,10 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
         val screenshotPath = intent.getStringExtra("SCREENSHOT_PATH")
         ocrLanguage = intent.getStringExtra("OCR_LANGUAGE")
         profileId = intent.getLongExtra("PROFILE_ID", -1L)
+        
+        // Get floating button restoration flag
+        shouldRestoreFloatingButton = intent.getBooleanExtra("RESTORE_FLOATING_BUTTON", false)
+        Log.d(TAG, "Should restore floating button: $shouldRestoreFloatingButton")
 
         // Log profile ID
         Log.d(TAG, "Using profile ID: $profileId")
@@ -423,6 +435,10 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
 
         // Close button
         closeButton.setOnClickListener {
+            // Ensure floating button is restored if needed
+            if (shouldRestoreFloatingButton) {
+                restoreFloatingButton()
+            }
             // Use finishAndRemoveTask to fully close the activity and return to the previous app
             finishAndRemoveTask()
         }
@@ -442,6 +458,26 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             viewModel.translatedText.value,
             ocrLanguage
         )
+    }
+    
+    /**
+     * Helper method to restore the floating button via AccessibilityOcrService
+     */
+    private fun restoreFloatingButton() {
+        try {
+            val accessibilityService = com.abaga129.tekisuto.service.AccessibilityOcrService.getInstance()
+            if (accessibilityService != null) {
+                Log.d(TAG, "Requesting floating button restoration from service")
+                accessibilityService.showFloatingButton()
+            } else {
+                Log.d(TAG, "Service instance not available, sending broadcast to show button")
+                // Fallback: send broadcast to show floating button
+                val intent = Intent(AccessibilityOcrService.ACTION_SHOW_FLOATING_BUTTON)
+                sendBroadcast(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error restoring floating button: ${e.message}")
+        }
     }
     
     /**

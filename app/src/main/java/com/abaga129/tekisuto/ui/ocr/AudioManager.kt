@@ -13,6 +13,7 @@ import androidx.preference.PreferenceManager
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.ui.settings.SettingsActivity
+import com.abaga129.tekisuto.util.LanguageDetector
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -207,33 +208,20 @@ class AudioManager(
     
     /**
      * Determine the language of an entry for audio generation
+     * 
+     * Uses the centralized LanguageDetector class for consistent language detection
+     * throughout the app.
      */
     fun determineLanguage(entry: DictionaryEntryEntity, ocrLanguage: String?): String {
-        // First priority: Check if text contains Japanese, Chinese, or Korean characters
+        // Get the combined text for detection
         val text = entry.term + " " + entry.reading
         
-        // Check for Japanese characters (Hiragana, Katakana, Kanji)
-        if (text.matches(Regex(".*[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+.*"))) {
-            Log.d(TAG, "Text contains Japanese characters, using Japanese language code")
-            return "ja"
-        }
+        // Log the request
+        Log.d(TAG, "Determining language for text: '${text}', OCR language: $ocrLanguage")
         
-        // Check for Chinese characters (mainly Han characters without Japanese-specific characters)
-        if (text.matches(Regex(".*[\u4E00-\u9FFF]+.*")) && 
-            !text.contains(Regex("[\u3040-\u309F\u30A0-\u30FF]"))) {
-            Log.d(TAG, "Text contains Chinese characters, using Chinese language code")
-            return "zh"
-        }
-        
-        // Check for Korean characters (Hangul)
-        if (text.matches(Regex(".*[\uAC00-\uD7A3]+.*"))) {
-            Log.d(TAG, "Text contains Korean characters, using Korean language code")
-            return "ko"
-        }
-        
-        // Second priority: Use OCR language setting if available
-        if (ocrLanguage != null) {
-            return when (ocrLanguage) {
+        // If we have a specific OCR language setting, use that as a priority hint
+        if (ocrLanguage != null && ocrLanguage != "latin") {
+            val mappedLanguage = when (ocrLanguage) {
                 "japanese" -> "ja"
                 "chinese" -> "zh"
                 "korean" -> "ko"
@@ -242,50 +230,20 @@ class AudioManager(
                 "german" -> "de"
                 "italian" -> "it"
                 "russian" -> "ru"
-                else -> "en"
+                else -> null
+            }
+            
+            if (mappedLanguage != null) {
+                Log.d(TAG, "Using OCR language hint: $mappedLanguage")
+                return mappedLanguage
             }
         }
         
-        // Third priority: Check for other language-specific characters in text
+        // Use the LanguageDetector for detection
+        val detectedLanguage = LanguageDetector.getInstance().detectLanguageSync(text)
         
-        // Spanish character detection
-        if (text.contains("á") || text.contains("é") || 
-            text.contains("í") || text.contains("ó") || 
-            text.contains("ú") || text.contains("ü") || 
-            text.contains("ñ") || text.contains("¿") || 
-            text.contains("¡")) {
-            Log.d(TAG, "Text contains Spanish characters, using Spanish language code")
-            return "es"
-        }
-        
-        // French character detection
-        if (text.contains("à") || text.contains("â") || 
-            text.contains("ç") || text.contains("é") || 
-            text.contains("è") || text.contains("ê") || 
-            text.contains("ë") || text.contains("î") || 
-            text.contains("ï") || text.contains("ô") || 
-            text.contains("ù") || text.contains("û") || 
-            text.contains("ü")) {
-            Log.d(TAG, "Text contains French characters, using French language code")
-            return "fr"
-        }
-        
-        // German character detection
-        if (text.contains("ä") || text.contains("ö") || 
-            text.contains("ü") || text.contains("ß")) {
-            Log.d(TAG, "Text contains German characters, using German language code")
-            return "de"
-        }
-        
-        // Russian character detection (Cyrillic)
-        if (text.matches(Regex(".*[А-Яа-я]+.*"))) {
-            Log.d(TAG, "Text contains Russian characters, using Russian language code")
-            return "ru"
-        }
-        
-        // Default to English if no specific language characteristics are detected
-        Log.d(TAG, "No specific language detected, defaulting to English")
-        return "en"
+        Log.d(TAG, "Language detection result: $detectedLanguage")
+        return detectedLanguage
     }
     
     /**

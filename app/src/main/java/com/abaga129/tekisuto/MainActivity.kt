@@ -21,8 +21,8 @@ import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.ui.profile.ProfileManagerActivity
 import com.abaga129.tekisuto.ui.settings.SettingsActivity
-import com.abaga129.tekisuto.viewmodel.DictionaryInfo
 import com.abaga129.tekisuto.viewmodel.MainViewModel
+import com.abaga129.tekisuto.viewmodel.ParserViewModel
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 
@@ -55,8 +55,6 @@ class MainActivity : BaseEdgeToEdgeActivity() {
 
         // Initialize repository from application
         val repository = DictionaryRepository(applicationContext)
-        viewModel.initRepository(repository)
-
         // Initialize UI components
         statusTextView = findViewById(R.id.status_text_view)
         settingsButton = findViewById(R.id.settings_button)
@@ -117,12 +115,12 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         }
 
         // Observe import progress
-        viewModel.importProgress.observe(this) { progress ->
+        ParserViewModel.getInstance().importProgress.observe(this) {progress ->
             updateImportProgress(progress)
         }
 
         // Observe dictionary info
-        viewModel.dictionaryInfo.observe(this) { info ->
+        ParserViewModel.getInstance().dictionaryInfo.observe(this) { info ->
             updateDictionaryInfo(info)
         }
         
@@ -290,7 +288,7 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         }
     }
 
-    private fun updateDictionaryInfo(info: DictionaryInfo?) {
+    private fun updateDictionaryInfo(info: ParserViewModel.DictionaryInfo?) {
         if (info != null) {
             val infoText = getString(
                 R.string.dictionary_info,

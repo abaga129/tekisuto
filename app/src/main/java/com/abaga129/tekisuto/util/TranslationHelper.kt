@@ -3,8 +3,6 @@ package com.abaga129.tekisuto.util
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.google.mlkit.nl.languageid.LanguageIdentification
-import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translator
@@ -18,7 +16,6 @@ import java.util.Locale
 class TranslationHelper(val context: Context) {
     private val prefs: SharedPreferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
     private var translator: Translator? = null
-    private var languageIdentifier: LanguageIdentifier = LanguageIdentification.getClient()
     private var currentSourceLanguage: String? = null
     private var currentTargetLanguage: String? = null
     
@@ -197,7 +194,9 @@ class TranslationHelper(val context: Context) {
                 .trim()
                 .take(500) // Limit to 500 chars for faster processing
             
-            val languageCode = languageIdentifier.identifyLanguage(sample).await()
+            // Use the LanguageDetector's async method for better accuracy
+            val languageCode = LanguageDetector.getInstance().detectLanguageAsync(sample)
+            
             Log.d(TAG, "Detected language: $languageCode")
             
             // Map ISO code to TranslateLanguage if supported
@@ -288,6 +287,5 @@ class TranslationHelper(val context: Context) {
     fun close() {
         translator?.close()
         translator = null
-        languageIdentifier.close()
     }
 }

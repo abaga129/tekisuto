@@ -16,8 +16,8 @@ android {
         applicationId = "com.abaga129.tekisuto"
         minSdk = 30 // Updated to API 30 (Android 11) for screenshot functionality
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.12-alpha"
+        versionCode = 14
+        versionName = "0.14-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -34,9 +34,19 @@ android {
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments += mapOf(
-                    "room.incremental" to "true"
+                    "room.incremental" to "true",
+                    "room.expandProjection" to "true",
+                    "room.schemaLocation" to "$projectDir/schemas"
                 )
             }
+        }
+        
+        // Add configurations for large dictionary imports
+        ndk {
+            abiFilters.add("armeabi-v7a")
+            abiFilters.add("arm64-v8a")
+            abiFilters.add("x86")
+            abiFilters.add("x86_64")
         }
     }
 
@@ -72,6 +82,20 @@ android {
     kapt {
         arguments {
             arg("room.schemaLocation", "$projectDir/schemas")
+            arg("room.incremental", "true")
+            arg("room.expandProjection", "true")
+        }
+        useBuildCache = true
+    }
+    
+    // Configure tasks for memory optimizations
+    tasks.withType<JavaCompile> {
+        options.forkOptions.jvmArgs = listOf("-Xmx2g")
+    }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions {
+            jvmTarget = "11"
+            freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
         }
     }
     
@@ -91,9 +115,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "11"
+        freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
     }
     buildFeatures {
         viewBinding = true
@@ -107,6 +133,9 @@ android {
 
 dependencies {
     val room_version = "2.6.1"
+    
+    // Add desugaring for better Java 8+ compatibility
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation("androidx.activity:activity-ktx:1.8.2") // For edge-to-edge support
@@ -145,8 +174,11 @@ dependencies {
     // Azure AI Speech Service
     implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.32.1")
     
-    // Gson for JSON serialization/deserialization
-    implementation("com.google.code.gson:gson:2.10.1")
+    // JSON serialization/deserialization
+    implementation("com.squareup.moshi:moshi:1.15.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+    kapt("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
+    implementation("com.google.code.gson:gson:2.10.1") // Keep for compatibility with existing code
     
     // Emoji support
     implementation("androidx.emoji2:emoji2:1.4.0")

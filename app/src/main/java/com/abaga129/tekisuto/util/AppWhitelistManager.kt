@@ -54,21 +54,18 @@ class AppWhitelistManager(private val context: Context) {
     }
     
     /**
-     * Get all whitelisted apps
+     * Get all whitelisted apps with safer parsing
      */
     fun getWhitelistedApps(): List<AppEntry> {
-        Log.d(TAG, "getWhitelistedApps: Retrieving whitelisted apps")
-        val json = prefs.getString(PreferenceKeys.APP_WHITELIST, "[]")
-        Log.d(TAG, "getWhitelistedApps: Raw JSON: $json")
+        val json = prefs.getString(PreferenceKeys.APP_WHITELIST, "[]") ?: "[]"
         val type = object : TypeToken<List<AppEntry>>() {}.type
-        val result = try {
+        
+        return try {
             gson.fromJson<List<AppEntry>>(json, type) ?: emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "getWhitelistedApps: Error parsing JSON", e)
             emptyList()
         }
-        Log.d(TAG, "getWhitelistedApps: Found ${result.size} whitelisted apps")
-        return result
     }
     
     /**
@@ -125,72 +122,33 @@ class AppWhitelistManager(private val context: Context) {
     fun getInstalledApps(): List<AppEntry> {
         Log.d(TAG, "getInstalledApps: Retrieving installed apps")
         val pm = context.packageManager
+        val result = mutableListOf<AppEntry>()
         
         try {
-            // Try a different approach using LauncherApps service first
-            val result = mutableListOf<AppEntry>()
+            val packages = pm.getInstalledPackages(0)
+            Log.d(TAG, "getInstalledApps: Found ${packages.size} total packages")
             
-            try {
-                Log.d(TAG, "getInstalledApps: Trying alternative approach with getInstalledPackages")
-                // Try using getInstalledPackages instead of getInstalledApplications
-                val packages = pm.getInstalledPackages(0)
-                Log.d(TAG, "getInstalledApps: Found ${packages.size} total packages")
-                
-                for (packageInfo in packages) {
-                    try {
-                        // Skip system apps and our own app
-                        val appInfo = packageInfo.applicationInfo
-                        if (((appInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0 || 
-                            packageInfo.packageName == context.packageName) {
-                            continue
-                        }
-                        
-                        // Check if the app has a launcher intent (can be opened)
-                        val launchIntent = pm.getLaunchIntentForPackage(packageInfo.packageName)
-                        if (launchIntent == null) {
-                            // Skip apps that can't be launched
-                            continue
-                        }
-                        
-                        val appName = appInfo?.let { pm.getApplicationLabel(it).toString() } ?: packageInfo.packageName
-                        Log.d(TAG, "Adding app: $appName (${packageInfo.packageName})")
-                        result.add(AppEntry(packageInfo.packageName, appName))
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error processing package ${packageInfo.packageName}", e)
+            for (packageInfo in packages) {
+                try {
+                    // Skip system apps and our own app
+                    val appInfo = packageInfo.applicationInfo ?: continue
+                    if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 || 
+                        packageInfo.packageName == context.packageName) {
+                        continue
                     }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error using getInstalledPackages", e)
-                
-                // Fall back to original approach
-                Log.d(TAG, "getInstalledApps: Falling back to getInstalledApplications")
-                val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                Log.d(TAG, "getInstalledApps: Found ${installedApps.size} total installed apps")
-                
-                // Filter non-system apps
-                val filteredApps = installedApps.filter { appInfo -> 
-                    // Filter out system apps and our own app
-                    (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 && 
-                    appInfo.packageName != context.packageName
-                }
-                Log.d(TAG, "getInstalledApps: After filtering, ${filteredApps.size} non-system apps found")
-                
-                // Create app entries
-                filteredApps.forEach { appInfo ->
-                    try {
-                        // Check if the app has a launcher intent (can be opened)
-                        val launchIntent = pm.getLaunchIntentForPackage(appInfo.packageName)
-                        if (launchIntent == null) {
-                            // Skip apps that can't be launched
-                            return@forEach
-                        }
-                        
-                        val appName = pm.getApplicationLabel(appInfo).toString()
-                        Log.d(TAG, "Adding app: $appName (${appInfo.packageName})")
-                        result.add(AppEntry(appInfo.packageName, appName))
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error processing app ${appInfo.packageName}", e)
+                    
+                    // Check if the app has a launcher intent (can be opened)
+                    val launchIntent = pm.getLaunchIntentForPackage(packageInfo.packageName)
+                    if (launchIntent == null) {
+                        // Skip apps that can't be launched
+                        continue
                     }
+                    
+                    val appName = pm.getApplicationLabel(appInfo).toString()
+                    Log.d(TAG, "Adding app: $appName (${packageInfo.packageName})")
+                    result.add(AppEntry(packageInfo.packageName, appName))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error processing package ${packageInfo.packageName}", e)
                 }
             }
             
@@ -198,18 +156,7 @@ class AppWhitelistManager(private val context: Context) {
             Log.d(TAG, "getInstalledApps: Found ${result.size} launchable non-system apps")
             
             // Sort the results
-            val sortedResult = result.sortedBy { it.appName.lowercase() }
-            
-            Log.d(TAG, "getInstalledApps: Returning ${sortedResult.size} app entries")
-            if (sortedResult.isNotEmpty()) {
-                Log.d(TAG, "getInstalledApps: First app: ${sortedResult.first().appName} (${sortedResult.first().packageName})")
-                // Log a few more apps for debugging
-                if (sortedResult.size >= 3) {
-                    Log.d(TAG, "Sample apps: ${sortedResult[0].appName}, ${sortedResult[1].appName}, ${sortedResult[2].appName}")
-                }
-            }
-            
-            return sortedResult
+            return result.sortedBy { it.appName.lowercase() }
         } catch (e: Exception) {
             Log.e(TAG, "getInstalledApps: Error getting installed apps", e)
             return emptyList()

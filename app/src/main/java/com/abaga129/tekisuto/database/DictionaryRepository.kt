@@ -21,6 +21,7 @@ import com.abaga129.tekisuto.database.MIGRATION_8_9
 import org.json.JSONArray
 import org.json.JSONException
 import java.util.Date
+import kotlin.random.Random
 
 private const val TAG = "DictionaryRepository"
 
@@ -72,13 +73,89 @@ class DictionaryRepository(context: Context) {
     private val dictionaryMetadataDao = database.dictionaryMetadataDao()
     private val exportedWordsDao = database.exportedWordsDao()
     private val profileDictionaryDao = database.profileDictionaryDao()
+    private val wordFrequencyDao = database.wordFrequencyDao()
+    
+    /**
+     * Normalize Japanese characters for better matching
+     * - Convert full-width to half-width where appropriate
+     * - Normalize variations of similar characters
+     */
+    private fun normalizeJapaneseCharacters(input: String): String {
+        var result = input
+        
+        // Replace full-width alphabetic characters with half-width
+        val fullWidthAlphabeticStart = 0xFF21 // Ａ
+        val fullWidthAlphabeticEnd = 0xFF5A // ｚ
+        val asciiOffset = 0xFF21 - 'A'.code
+        
+        val sb = StringBuilder()
+        for (c in result) {
+            val code = c.code
+            if (code in fullWidthAlphabeticStart..fullWidthAlphabeticEnd) {
+                sb.append((code - asciiOffset).toChar())
+            } else {
+                sb.append(c)
+            }
+        }
+        result = sb.toString()
+        
+        // Other specific normalizations
+        val replacements = mapOf(
+            '〜' to '～',
+            'ー' to '－',
+            '－' to '-',
+            '，' to ',',
+            '　' to ' '
+        )
+        
+        for ((fullWidth, halfWidth) in replacements) {
+            result = result.replace(fullWidth, halfWidth)
+        }
+        
+        return result
+    }
 
     /**
      * Saves dictionary metadata and returns the ID
+     * Uses a safe approach that won't delete dictionary entries when updating
      */
     suspend fun saveDictionaryMetadata(metadata: DictionaryMetadataEntity): Long {
         return try {
-            dictionaryMetadataDao.insert(metadata)
+            if (metadata.id > 0) {
+                // This is an update to an existing dictionary - use UPDATE query instead of REPLACE
+                val entryCountBefore = getDictionaryEntryCount(metadata.id)
+                Log.d(TAG, "Updating existing dictionary ${metadata.id} which has $entryCountBefore entries")
+                
+                // Use direct update query instead of insert with REPLACE strategy
+                val updateCount = dictionaryMetadataDao.updateMetadata(
+                    id = metadata.id,
+                    title = metadata.title,
+                    author = metadata.author,
+                    description = metadata.description,
+                    sourceLanguage = metadata.sourceLanguage,
+                    targetLanguage = metadata.targetLanguage,
+                    entryCount = metadata.entryCount,
+                    priority = metadata.priority,
+                    importDate = metadata.importDate.time
+                )
+                
+                Log.d(TAG, "Updated dictionary metadata with ID ${metadata.id}, rows affected: $updateCount")
+                
+                // Check if entry count is still correct after update
+                val entryCountAfter = getDictionaryEntryCount(metadata.id)
+                Log.d(TAG, "After update, dictionary ${metadata.id} has $entryCountAfter entries")
+                
+                if (entryCountAfter != entryCountBefore) {
+                    Log.e(TAG, "WARNING: Dictionary entries changed from $entryCountBefore to $entryCountAfter during metadata update!")
+                }
+                
+                metadata.id
+            } else {
+                // New dictionary, use normal insert
+                val id = dictionaryMetadataDao.insert(metadata)
+                Log.d(TAG, "Inserted new dictionary metadata with ID $id")
+                id
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error saving dictionary metadata", e)
             -1
@@ -90,7 +167,24 @@ class DictionaryRepository(context: Context) {
      */
     suspend fun getAllDictionaries(): List<DictionaryMetadataEntity> {
         return try {
-            dictionaryMetadataDao.getAllDictionaries()
+            // Log dictionary entry counts before querying metadata
+            Log.d(TAG, "getAllDictionaries called - Checking dictionary entry counts before query")
+            val dictionaryIds = dictionaryMetadataDao.getAllDictionaryIds()
+            for (id in dictionaryIds) {
+                val entryCount = getDictionaryEntryCount(id)
+                Log.d(TAG, "VERIFY: Before getAllDictionaries returns - Dictionary $id has $entryCount entries")
+            }
+            
+            val result = dictionaryMetadataDao.getAllDictionaries()
+            
+            // Log dictionary entry counts after querying metadata
+            Log.d(TAG, "getAllDictionaries returning ${result.size} dictionaries - Verifying entry counts")
+            for (dict in result) {
+                val entryCount = getDictionaryEntryCount(dict.id)
+                Log.d(TAG, "VERIFY: After getAllDictionaries returns - Dictionary ${dict.id} has $entryCount entries")
+            }
+            
+            result
         } catch (e: Exception) {
             Log.e(TAG, "Error getting dictionaries", e)
             emptyList()
@@ -118,8 +212,20 @@ class DictionaryRepository(context: Context) {
      */
     suspend fun updateDictionaryPriority(dictionaryId: Long, newPriority: Int) {
         try {
+            Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId - Getting entry count")
+            val entryCountBefore = getDictionaryEntryCount(dictionaryId)
+            Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId has $entryCountBefore entries")
+            
             dictionaryMetadataDao.updatePriority(dictionaryId, newPriority)
             Log.d(TAG, "Updated priority of dictionary $dictionaryId to $newPriority")
+            
+            // Verify entries weren't affected
+            val entryCountAfter = getDictionaryEntryCount(dictionaryId)
+            Log.d(TAG, "After updatePriority: Dictionary $dictionaryId has $entryCountAfter entries")
+            
+            if (entryCountBefore != entryCountAfter) {
+                Log.e(TAG, "WARNING: Entry count changed from $entryCountBefore to $entryCountAfter during priority update!")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating dictionary priority", e)
             throw e
@@ -518,6 +624,201 @@ class DictionaryRepository(context: Context) {
             throw e
         }
     }
+    
+    /**
+     * Gets word frequency data for a specific dictionary
+     * @param dictionaryId The dictionary ID to get frequency data for
+     * @return List of WordFrequencyEntity for the dictionary
+     */
+    suspend fun getWordFrequencies(dictionaryId: Long): List<WordFrequencyEntity> {
+        return try {
+            wordFrequencyDao.getFrequenciesForDictionary(dictionaryId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting word frequencies for dictionary $dictionaryId", e)
+            emptyList()
+        }
+    }
+    
+    /**
+     * Gets frequency for a specific word
+     * @param word The word to get frequency for
+     * @return WordFrequencyEntity for the word, or null if not found
+     */
+    suspend fun getFrequencyForWord(word: String): WordFrequencyEntity? {
+        return try {
+            wordFrequencyDao.getFrequencyForWord(word)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting frequency for word $word", e)
+            null
+        }
+    }
+    
+    /**
+     * Gets frequency for a specific word in a specific dictionary
+     * @param word The word to get frequency for
+     * @param dictionaryId The dictionary ID to get frequency from
+     * @return WordFrequencyEntity for the word, or null if not found
+     */
+    suspend fun getFrequencyForWordInDictionary(word: String, dictionaryId: Long): WordFrequencyEntity? {
+        return try {
+            // Add debug logging
+            Log.d(TAG, "Looking up frequency for word='$word' in dictionary=$dictionaryId")
+            
+            // Get total count of frequencies for this dictionary (debug only)
+            val totalCount = wordFrequencyDao.getCountForDictionary(dictionaryId)
+            Log.d(TAG, "Dictionary $dictionaryId has $totalCount frequency entries total")
+            
+            var result: WordFrequencyEntity? = null
+            
+            // First try with the improved combined query
+            result = wordFrequencyDao.getFrequencyForWordInDictionary(word, dictionaryId)
+            
+            // If that doesn't work, try with trimmed whitespace
+            if (result == null) {
+                Log.d(TAG, "Standard lookup failed, trying with trimmed whitespace")
+                result = wordFrequencyDao.getFrequencyForWordTrimmed(word, dictionaryId)
+            }
+            
+            // If still no results, try a few more variations
+            if (result == null) {
+                // Try with common character normalizations
+                val normalizedWord = normalizeJapaneseCharacters(word)
+                if (normalizedWord != word) {
+                    Log.d(TAG, "Trying with normalized characters: '$word' -> '$normalizedWord'")
+                    result = wordFrequencyDao.getFrequencyForWordInDictionary(normalizedWord, dictionaryId)
+                }
+            }
+            
+            // Log results
+            if (result != null) {
+                Log.d(TAG, "Found frequency for '$word': #${result.frequency}")
+            } else {
+                Log.d(TAG, "No frequency data found for '$word' in dictionary $dictionaryId")
+                
+                // Extra debugging - dump a few frequency entries from this dictionary to check format
+                val sampleEntries = wordFrequencyDao.getFrequenciesForDictionary(dictionaryId).take(3)
+                if (sampleEntries.isNotEmpty()) {
+                    Log.d(TAG, "Sample frequency entries from dictionary $dictionaryId:")
+                    sampleEntries.forEach { 
+                        Log.d(TAG, "- Word: '${it.word}', Frequency: ${it.frequency}")
+                    }
+                }
+                
+                // For debugging, check if we can find frequencies for this word in ANY dictionary
+                val anyDictResult = wordFrequencyDao.getFrequencyForWord(word)
+                if (anyDictResult != null) {
+                    Log.d(TAG, "However, found frequency in dictionary ${anyDictResult.dictionaryId}: #${anyDictResult.frequency}")
+                }
+                
+                // Return the actual result from the database
+                // No synthetic test data
+            }
+            
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting frequency for word $word in dictionary $dictionaryId", e)
+            null
+        }
+    }
+    
+    /**
+     * Gets dictionary metadata for a specific dictionary
+     * @param dictionaryId The dictionary ID to get metadata for
+     * @return DictionaryMetadataEntity for the dictionary, or null if not found
+     */
+    suspend fun getDictionaryMetadata(dictionaryId: Long): DictionaryMetadataEntity? {
+        return try {
+            dictionaryMetadataDao.getDictionaryById(dictionaryId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting dictionary metadata for dictionary $dictionaryId", e)
+            null
+        }
+    }
+    
+    /**
+     * Saves word frequency data
+     * @param entity The WordFrequencyEntity to save
+     * @return The ID of the saved entity
+     */
+    suspend fun saveWordFrequency(entity: WordFrequencyEntity): Long {
+        return try {
+            wordFrequencyDao.insert(entity)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving word frequency", e)
+            -1
+        }
+    }
+    
+    /**
+     * Saves multiple word frequency entities at once
+     * @param entities List of WordFrequencyEntity to save
+     * @return List of IDs for the saved entities
+     */
+    suspend fun saveWordFrequencies(entities: List<WordFrequencyEntity>): List<Long> {
+        return try {
+            wordFrequencyDao.insertAll(entities)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving word frequencies", e)
+            emptyList()
+        }
+    }
+    
+    /**
+     * Gets the total count of word frequency entries
+     * @return The count of word frequency entries
+     */
+    suspend fun getWordFrequencyCount(): Int {
+        return try {
+            wordFrequencyDao.getTotalCount()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting word frequency count", e)
+            0
+        }
+    }
+    
+    /**
+     * Gets the count of word frequency entries for a specific dictionary
+     * @param dictionaryId The dictionary ID to get count for
+     * @return The count of word frequency entries for the dictionary
+     */
+    suspend fun getWordFrequencyCount(dictionaryId: Long): Int {
+        return try {
+            wordFrequencyDao.getCountForDictionary(dictionaryId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting word frequency count for dictionary $dictionaryId", e)
+            0
+        }
+    }
+    
+    /**
+     * Imports frequency data during dictionary import
+     * This method should be called after importing dictionary entries
+     * @param entries List of word frequencies to import
+     * @return The number of entries imported
+     */
+    suspend fun importWordFrequencies(entries: List<WordFrequencyEntity>): Int {
+        return try {
+            if (entries.isEmpty()) {
+                Log.w(TAG, "importWordFrequencies called with empty list")
+                return 0
+            }
+            
+            // Log sample of entries being imported
+            if (entries.isNotEmpty()) {
+                val sampleEntry = entries.first()
+                Log.d(TAG, "Sample frequency entry: word='${sampleEntry.word}', " +
+                      "dictionaryId=${sampleEntry.dictionaryId}, " +
+                      "frequency=${sampleEntry.frequency}")
+            }
+            
+            val result = wordFrequencyDao.insertAll(entries)
+            Log.d(TAG, "Successfully imported ${entries.size} word frequencies to database")
+            return entries.size
+        } catch (e: Exception) {
+            Log.e(TAG, "Error importing word frequencies: ${e.message}", e)
+            throw e
+        }
+    }
 }
 
 /**
@@ -565,8 +866,7 @@ data class DictionaryEntryEntity(
     val definition: String,
     val partOfSpeech: String,
     val tags: List<String> = emptyList(),
-    val isHtmlContent: Boolean = false, // Flag to indicate if definition contains HTML content
-    val frequency: Int? = null // Frequency information for the term, null if not available
+    val isHtmlContent: Boolean = false // Flag to indicate if definition contains HTML content
 )
 
 /**
@@ -617,6 +917,9 @@ interface DictionaryMetadataDao {
     @Query("SELECT * FROM dictionary_metadata ORDER BY priority DESC")
     suspend fun getAllDictionaries(): List<DictionaryMetadataEntity>
 
+    @Query("SELECT id FROM dictionary_metadata")
+    suspend fun getAllDictionaryIds(): List<Long>
+
     @Query("SELECT * FROM dictionary_metadata WHERE id = :id")
     suspend fun getDictionaryById(id: Long): DictionaryMetadataEntity?
 
@@ -628,6 +931,9 @@ interface DictionaryMetadataDao {
 
     @Query("UPDATE dictionary_metadata SET priority = :priority WHERE id = :id")
     suspend fun updatePriority(id: Long, priority: Int)
+
+    @Query("UPDATE dictionary_metadata SET title = :title, author = :author, description = :description, sourceLanguage = :sourceLanguage, targetLanguage = :targetLanguage, entryCount = :entryCount, priority = :priority, importDate = :importDate WHERE id = :id")
+    suspend fun updateMetadata(id: Long, title: String, author: String, description: String, sourceLanguage: String, targetLanguage: String, entryCount: Int, priority: Int, importDate: Long): Int
 
     @Query("UPDATE dictionary_metadata SET entryCount = :count WHERE id = :id")
     suspend fun updateEntryCount(id: Long, count: Int)
@@ -643,6 +949,7 @@ interface DictionaryDao {
 
     @Query("SELECT e.* FROM dictionary_entries e " +
            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+           "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
            "WHERE LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query) " +
            "ORDER BY " +
            "CASE " +
@@ -652,14 +959,15 @@ interface DictionaryDao {
            "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
            "  ELSE 4 " + // Everything else (matches in definition, etc.)
            "END, " +
-           "CASE WHEN e.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN e.frequency IS NOT NULL THEN e.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first, with high default for null values)
+           "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+           "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
            "m.priority DESC, e.id DESC")
     suspend fun searchEntriesOrderedByPriority(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
 
     @Query("SELECT e.* FROM dictionary_entries e " +
            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
            "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
+           "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
            "WHERE (LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query)) " +
            "AND pd.profileId = :profileId " +
            "ORDER BY " +
@@ -670,41 +978,45 @@ interface DictionaryDao {
            "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
            "  ELSE 4 " + // Everything else (matches in definition, etc.)
            "END, " +
-           "CASE WHEN e.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN e.frequency IS NOT NULL THEN e.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first, with high default for null values)
+           "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+           "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
            "m.priority DESC, e.id DESC")
     suspend fun searchEntriesForProfile(query: String, exactQuery: String = query, profileId: Long): List<DictionaryEntryEntity>
 
-    @Query("SELECT * FROM dictionary_entries " +
-           "WHERE term LIKE :query OR reading LIKE :query " +  /* Using index without LOWER for better performance */
-           "ORDER BY " +
-           "CASE " +
-           "  WHEN term = :exactQuery THEN 0 " + // Exact term match gets highest priority
-           "  WHEN term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
-           "  WHEN reading = :exactQuery THEN 2 " + // Exact reading match
-           "  WHEN reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
-           "  ELSE 4 " + // Everything else
-           "END, " +
-           "CASE WHEN frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN frequency IS NOT NULL THEN frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
-           "id DESC LIMIT 50")
+    @Query("SELECT e.* FROM dictionary_entries e " +
+"JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+"LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+"WHERE e.term LIKE :query OR e.reading LIKE :query " +  /* Using index without LOWER for better performance */
+"ORDER BY " +
+"CASE " +
+"  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
+"  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
+"  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
+"  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
+"  ELSE 4 " + // Everything else
+"END, " +
+"CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+"CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
+"m.priority DESC, e.id DESC LIMIT 50")
     suspend fun fastSearchEntries(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
     
     @Query("SELECT e.* FROM dictionary_entries e " +
-           "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
-           "WHERE (e.term LIKE :query OR e.reading LIKE :query) " +  /* Using index without LOWER for better performance */
-           "AND pd.profileId = :profileId " +
-           "ORDER BY " +
-           "CASE " +
-           "  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
-           "  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
-           "  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
-           "  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
-           "  ELSE 4 " + // Everything else
-           "END, " +
-           "CASE WHEN e.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN e.frequency IS NOT NULL THEN e.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
-           "e.id DESC LIMIT 50")
+"JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
+"JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+"LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+"WHERE (e.term LIKE :query OR e.reading LIKE :query) " +  /* Using index without LOWER for better performance */
+"AND pd.profileId = :profileId " +
+"ORDER BY " +
+"CASE " +
+"  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
+"  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
+"  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
+"  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
+"  ELSE 4 " + // Everything else
+"END, " +
+"CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+"CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
+"m.priority DESC, e.id DESC LIMIT 50")
     suspend fun fastSearchEntriesForProfile(query: String, exactQuery: String = query, profileId: Long): List<DictionaryEntryEntity>
     
     /* Bulk search for multiple terms at once */

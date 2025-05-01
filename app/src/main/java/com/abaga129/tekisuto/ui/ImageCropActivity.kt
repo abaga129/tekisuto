@@ -28,6 +28,7 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
     private val TAG = "ImageCropActivity"
     private var profileId: Long = -1L
     private lateinit var profileViewModel: ProfileViewModel
+    private var shouldRestoreFloatingButton: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +53,10 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
         // Get the profile ID from the intent (default to -1 if not provided)
         profileId = intent.getLongExtra("PROFILE_ID", -1L)
         Log.d(TAG, "Profile ID from intent: $profileId")
+        
+        // Get floating button restoration flag
+        shouldRestoreFloatingButton = intent.getBooleanExtra("RESTORE_FLOATING_BUTTON", false)
+        Log.d(TAG, "Should restore floating button: $shouldRestoreFloatingButton")
         
         if (screenshotPath.isNullOrEmpty()) {
             Log.e(TAG, "No screenshot path provided")
@@ -136,6 +141,12 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        
+        // If user cancels and we should restore the floating button
+        if (resultCode == RESULT_CANCELED && shouldRestoreFloatingButton) {
+            Log.d(TAG, "User cancelled, ensuring floating button is restored")
+            restoreFloatingButton()
+        }
 
         if (requestCode == UCrop.REQUEST_CROP && resultCode == RESULT_OK) {
             val resultUri = UCrop.getOutput(data!!)
@@ -153,6 +164,10 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
         } else if (resultCode == RESULT_CANCELED) {
             // User cancelled the crop, exit and return to previous app
             Log.d(TAG, "User cancelled crop operation, finishing activity")
+            // Ensure floating button is restored if needed
+            if (shouldRestoreFloatingButton) {
+                restoreFloatingButton()
+            }
             finishAndRemoveTask()
         }
     }
@@ -204,8 +219,13 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
                         putExtra("SCREENSHOT_PATH", file.absolutePath)
                         putExtra("OCR_LANGUAGE", ocrLanguage)
                         putExtra("PROFILE_ID", profileId)  // Pass the profile ID to the result activity
+                        putExtra("RESTORE_FLOATING_BUTTON", shouldRestoreFloatingButton) // Pass floating button restoration flag
                     }
                     startActivity(intent)
+                    // Ensure floating button is restored if needed before finishing
+                    if (shouldRestoreFloatingButton) {
+                        restoreFloatingButton()
+                    }
                     finish() // Close this activity
                 }
             }
@@ -225,6 +245,7 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
                         putExtra("OCR_TEXT", text)
                         putExtra("SCREENSHOT_PATH", file.absolutePath)
                         putExtra("OCR_LANGUAGE", ocrLanguage)
+                        putExtra("RESTORE_FLOATING_BUTTON", shouldRestoreFloatingButton) // Pass floating button restoration flag
                     }
                     startActivity(intent)
                     finish() // Close this activity
@@ -233,6 +254,26 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
         }
     }
 
+    /**
+     * Helper method to restore the floating button via AccessibilityOcrService
+     */
+    private fun restoreFloatingButton() {
+        try {
+            val accessibilityService = com.abaga129.tekisuto.service.AccessibilityOcrService.getInstance()
+            if (accessibilityService != null) {
+                Log.d(TAG, "Requesting floating button restoration from service")
+                accessibilityService.showFloatingButton()
+            } else {
+                Log.d(TAG, "Service instance not available, sending broadcast to show button")
+                // Fallback: send broadcast to show floating button
+                val intent = Intent(com.abaga129.tekisuto.service.AccessibilityOcrService.ACTION_SHOW_FLOATING_BUTTON)
+                sendBroadcast(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error restoring floating button: ${e.message}")
+        }
+    }
+    
     private fun saveScreenshotToFile(bitmap: Bitmap): File? {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "CroppedScreenshot_$timeStamp.jpg"

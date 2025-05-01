@@ -45,6 +45,12 @@
     <!-- Frequency indicator -->
     <color name="frequency_color">#FF9800</color>         <!-- Orange for frequency data -->
     
+    <!-- Badge colors for dictionary frequency data -->
+    <color name="badge_background">#4F7F98</color>       <!-- Primary color for badges -->
+    <color name="badge_common">#4CAF50</color>           <!-- Green for common words -->
+    <color name="badge_uncommon">#FF9800</color>         <!-- Orange for less common words -->
+    <color name="badge_rare">#9E9E9E</color>             <!-- Gray for rare words -->
+    
     <!-- Voice selection dialog -->
     <color name="headerBackground">#F0F4F7</color>        <!-- Light blue-gray for headers -->
 </resources>

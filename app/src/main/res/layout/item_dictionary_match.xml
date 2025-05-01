@@ -67,6 +67,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
+            android:layout_marginStart="8dp"
             android:textSize="12sp"
             android:textColor="?attr/colorOnSecondaryContainer"
             android:background="?attr/colorSecondaryContainer"
@@ -74,28 +75,55 @@
             android:paddingEnd="4dp"
             android:paddingTop="2dp"
             android:paddingBottom="2dp"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/dictionary_badge"
             app:layout_constraintTop_toBottomOf="@+id/term_text"
             tools:text="Noun" />
             
-        <androidx.emoji2.widget.EmojiTextView
-            android:id="@+id/frequency_text"
+        <!-- Dictionary badge with frequency -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/dictionary_badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:layout_marginTop="4dp"
-            android:textSize="12sp"
-            android:textColor="@android:color/white"
-            android:background="@color/frequency_color"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
+            app:cardCornerRadius="4dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/badge_background"
             android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@+id/part_of_speech_text"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/term_text"
-            tools:text="Freq: #123" 
-            tools:visibility="visible" />
+            tools:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="4dp">
+
+                <!-- Dictionary Name -->
+                <TextView
+                    android:id="@+id/dictionary_name_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    tools:text="JPDB" />
+
+                <!-- Frequency Data -->
+                <TextView
+                    android:id="@+id/frequency_value_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="9sp"
+                    android:textColor="@android:color/white"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    tools:text="#685" />
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
         <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/definition_text"
@@ -111,7 +139,8 @@
             android:linksClickable="true"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/part_of_speech_text"
+            app:layout_constraintTop_toBottomOf="@+id/dictionary_badge"
+            app:layout_goneMarginTop="4dp"
             tools:text="The definition of the word goes here with additional explanation if needed." />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

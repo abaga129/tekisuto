@@ -15,7 +15,6 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.WindowMetrics
-import androidx.core.view.WindowInsetsCompat
 import androidx.preference.PreferenceManager
 import com.abaga129.tekisuto.R
 import kotlin.math.abs
@@ -69,6 +68,9 @@ class FloatingButtonHandler(private val service: AccessibilityOcrService) {
 
     // Callback for button actions
     private var callback: FloatingButtonCallback? = null
+    
+    // To track and prevent concurrent operations
+    private var isOperationInProgress = false
 
     init {
         // Load settings and update screen dimensions
@@ -88,7 +90,7 @@ class FloatingButtonHandler(private val service: AccessibilityOcrService) {
      * Load double tap settings from preferences
      */
     private fun loadDoubleTapSettings() {
-        // Reuse the existing preference keys initially, can be updated later
+        // Load preference values
         isDoubleTapEnabled = prefs.getBoolean("enable_long_press_capture", true)
         doubleTapTimeout = prefs.getInt("long_press_duration", 300).toLong()
         Log.d("FloatingButtonHandler", "Double tap settings loaded: enabled=$isDoubleTapEnabled, timeout=$doubleTapTimeout ms")
@@ -108,260 +110,227 @@ class FloatingButtonHandler(private val service: AccessibilityOcrService) {
      * Get and update system insets information
      */
     private fun updateSystemInsets() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        statusBarInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                val windowMetrics: WindowMetrics = windowManager.currentWindowMetrics
-                val windowInsets = windowMetrics.windowInsets
-                
-                val insets = windowInsets.getInsetsIgnoringVisibility(
-                    WindowInsets.Type.statusBars() or
-                    WindowInsets.Type.navigationBars()
+                val windowMetrics = windowManager.currentWindowMetrics
+                val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
+                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
                 )
                 
-                statusBarInset = insets.top
                 navigationBarInset = insets.bottom
-                
-                Log.d("FloatingButtonHandler", "System insets: statusBar=$statusBarInset, navigationBar=$navigationBarInset")
+                Log.d("FloatingButtonHandler", "System insets from API: statusBar=${insets.top}, navigationBar=${insets.bottom}")
+                insets.top
             } catch (e: Exception) {
                 Log.e("FloatingButtonHandler", "Error getting system insets", e)
-                // Fallback to resource method for status bar height
                 getStatusBarHeightFromResources()
             }
         } else {
-            // Fallback for older Android versions
             getStatusBarHeightFromResources()
         }
+        
+        Log.d("FloatingButtonHandler", "Using status bar height: $statusBarInset")
     }
     
     /**
      * Fallback method to get status bar height from resources
      */
-    private fun getStatusBarHeightFromResources() {
+    private fun getStatusBarHeightFromResources(): Int {
         val resourceId = service.resources.getIdentifier("status_bar_height", "dimen", "android")
-        if (resourceId > 0) {
-            statusBarInset = service.resources.getDimensionPixelSize(resourceId)
-            Log.d("FloatingButtonHandler", "Status bar height from resources: $statusBarInset")
+        return if (resourceId > 0) {
+            val height = service.resources.getDimensionPixelSize(resourceId)
+            Log.d("FloatingButtonHandler", "Status bar height from resources: $height")
+            height
         } else {
             // Default fallback if resource not found
-            statusBarInset = (24 * service.resources.displayMetrics.density).toInt()
-            Log.d("FloatingButtonHandler", "Using default status bar height: $statusBarInset")
+            val height = (24 * service.resources.displayMetrics.density).toInt()
+            Log.d("FloatingButtonHandler", "Using default status bar height: $height")
+            height
         }
     }
 
+    // Timeout for operations to prevent deadlocks
+    private val OPERATION_TIMEOUT = 1000L
+
     /**
-     * Create the main floating button with improved robustness
+     * Create and show floating button with improved stability
      */
     fun createFloatingButton() {
-        // Don't create if already visible or operation in progress
-        if (isFloatingButtonVisible || isOperationInProgress) {
-            Log.d("FloatingButtonHandler", "Button already visible or operation in progress, skipping creation")
+        // Don't create if already visible
+        if (isFloatingButtonVisible) {
+            Log.d("FloatingButtonHandler", "Button already visible, skipping creation")
             return
         }
         
+        // If operation in progress, wait a bit and check again to prevent race conditions
+        if (isOperationInProgress) {
+            Log.d("FloatingButtonHandler", "Operation in progress, scheduling retry after timeout")
+            
+            // Schedule a retry after the operation timeout
+            mainHandler.postDelayed({
+                if (!isFloatingButtonVisible && !isOperationInProgress) {
+                    Log.d("FloatingButtonHandler", "Retrying button creation after timeout")
+                    createFloatingButton()
+                } else {
+                    Log.d("FloatingButtonHandler", "Skipping retry - button is now visible or another operation started")
+                }
+            }, OPERATION_TIMEOUT)
+            
+            return
+        }
+        
+        // Mark operation as in progress with timeout protection
         isOperationInProgress = true
-        Log.d("FloatingButtonHandler", "Creating Tekisuto logo button")
+        
+        // Set a timeout to prevent permanent locks if something goes wrong
+        mainHandler.postDelayed({
+            if (isOperationInProgress) {
+                Log.w("FloatingButtonHandler", "Operation timeout - resetting operation in progress flag")
+                isOperationInProgress = false
+            }
+        }, OPERATION_TIMEOUT)
+        
+        Log.d("FloatingButtonHandler", "Creating floating button")
         
         try {
-            // First, make sure any existing view is removed to prevent WindowManager leaks
-            if (floatingView != null) {
-                try {
-                    windowManager.removeView(floatingView)
-                    floatingView = null
-                } catch (e: Exception) {
-                    // Ignore errors here, just making sure any old views are cleaned up
-                    Log.d("FloatingButtonHandler", "Clean up of old view: ${e.message}")
-                }
-            }
+            // Clean up any existing view
+            removeExistingView()
             
-            // Try to use a layout with the Tekisuto logo
+            // Create the view
             val inflater = LayoutInflater.from(service)
-            val simplifiedView = inflater.inflate(R.layout.minimized_indicator, null)
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-
-            params.gravity = Gravity.TOP or Gravity.START
+            val buttonView = inflater.inflate(R.layout.minimized_indicator, null)
             
-            // Get saved position with default fallback
-            val savedX = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_X, 100)
-            var savedY = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_Y, 100)
+            // Create layout parameters
+            val params = createDefaultLayoutParams()
             
-            // Ensure Y position respects the status bar inset 
-            if (savedY < statusBarInset) {
-                savedY = statusBarInset
-                // Save the corrected position
-                prefs.edit().putInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_Y, savedY).apply()
-                Log.d("FloatingButtonHandler", "Adjusted Y position to respect status bar: $savedY")
-            }
+            // Position the button
+            setupButtonPosition(params)
             
-            // Update screen dimensions in case they've changed (rotation, etc.)
-            updateScreenDimensions()
+            // Add touch listener
+            buttonView.setOnTouchListener(createDragTouchListener(params))
             
-            val posX = keepPositionWithinBounds(savedX, 0, screenWidth - 50)
-            val posY = keepPositionWithinBounds(savedY, statusBarInset, screenHeight - 50)
-            
-            params.x = posX
-            params.y = posY
-
-            // Make the button draggable
-            simplifiedView.setOnTouchListener(createDragTouchListener(params))
-
+            // Add the view
             try {
-                windowManager.addView(simplifiedView, params)
-                floatingView = simplifiedView
+                windowManager.addView(buttonView, params)
+                floatingView = buttonView
                 floatingParams = params
                 isFloatingButtonVisible = true
-                Log.d("FloatingButtonHandler", "Successfully added Tekisuto logo button at position: $posX, $posY")
+                Log.d("FloatingButtonHandler", "Successfully added floating button at position: ${params.x}, ${params.y}")
             } catch (e: Exception) {
-                Log.e("FloatingButtonHandler", "Error adding Tekisuto logo button", e)
-                createFallbackIndicator()
+                Log.e("FloatingButtonHandler", "Error adding floating button", e)
+                isFloatingButtonVisible = false
+                floatingView = null
             }
         } catch (e: Exception) {
-            Log.e("FloatingButtonHandler", "Error creating Tekisuto logo button", e)
-            createFallbackIndicator()
+            Log.e("FloatingButtonHandler", "Error creating floating button", e)
+            isFloatingButtonVisible = false
+            floatingView = null
         } finally {
             isOperationInProgress = false
         }
     }
 
     /**
-     * Create a fallback indicator in case the main one fails,
-     * with improved robustness
+     * Helper method to remove any existing view
      */
-    private fun createFallbackIndicator() {
-        try {
-            // First ensure any existing view is removed
-            if (floatingView != null) {
-                try {
-                    windowManager.removeView(floatingView)
-                    floatingView = null
-                } catch (e: Exception) {
-                    // Just log and continue
-                    Log.d("FloatingButtonHandler", "Error cleaning up old view: ${e.message}")
-                }
-            }
-            
-            // Create a small logo indicator as a fallback
-            val inflater = LayoutInflater.from(service)
-            val indicatorView = inflater.inflate(R.layout.minimized_indicator, null)
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-
-            params.gravity = Gravity.TOP or Gravity.START
-            val savedX = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_X, 100)
-            var savedY = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_Y, 100)
-            
-            // Ensure Y position respects the status bar inset
-            if (savedY < statusBarInset) {
-                savedY = statusBarInset
-            }
-            
-            // Make sure position is within screen bounds
-            val posX = keepPositionWithinBounds(savedX, 0, screenWidth - 50)
-            val posY = keepPositionWithinBounds(savedY, statusBarInset, screenHeight - 50)
-            
-            params.x = posX
-            params.y = posY
-
-            // Make the indicator draggable
-            indicatorView.setOnTouchListener(createDragTouchListener(params))
-
+    private fun removeExistingView() {
+        if (floatingView != null) {
             try {
-                windowManager.addView(indicatorView, params)
-                floatingView = indicatorView
-                floatingParams = params
-                isFloatingButtonVisible = true
-                Log.d("FloatingButtonHandler", "Successfully added fallback indicator")
-            } catch (e: Exception) {
-                Log.e("FloatingButtonHandler", "Error adding fallback indicator", e)
-                // Reset the state since we failed
-                isFloatingButtonVisible = false
+                windowManager.removeView(floatingView)
                 floatingView = null
+            } catch (e: Exception) {
+                // Just log and continue
+                Log.d("FloatingButtonHandler", "Clean up of old view: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e("FloatingButtonHandler", "Error creating fallback indicator", e)
-            // Reset the state since we failed
-            isFloatingButtonVisible = false
-            floatingView = null
         }
     }
 
     /**
-     * Create a minimized indicator that can be used to bring back the floating button
+     * Create default layout parameters for the button
      */
-    fun createMinimizedIndicator() {
-        try {
-            val inflater = LayoutInflater.from(service)
-            val indicatorView = inflater.inflate(R.layout.minimized_indicator, null)
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-
-            // Use the same position as the floating button with boundary checking
-            params.gravity = Gravity.TOP or Gravity.START
-            val savedX = prefs.getInt("floating_button_x", 100)
-            var savedY = prefs.getInt("floating_button_y", 100)
-            
-            // Ensure Y position respects the status bar inset
-            if (savedY < statusBarInset) {
-                savedY = statusBarInset
-            }
-            
-            val posX = keepPositionWithinBounds(savedX, 0, screenWidth - 50)
-            val posY = keepPositionWithinBounds(savedY, statusBarInset, screenHeight - 50)
-            
-            params.x = posX
-            params.y = posY
-
-            // Make the indicator draggable with double tap detection
-            indicatorView.setOnTouchListener(createDragTouchListener(params))
-
-            try {
-                windowManager.addView(indicatorView, params)
-                floatingView = indicatorView
-                floatingParams = params
-                isFloatingButtonVisible = true
-                Log.d("FloatingButtonHandler", "Successfully added minimized indicator")
-            } catch (e: Exception) {
-                Log.e("FloatingButtonHandler", "Error adding minimized indicator", e)
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingButtonHandler", "Error creating minimized indicator", e)
-            // Create a fallback indicator
-            createFallbackIndicator()
+    private fun createDefaultLayoutParams(): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
         }
     }
 
-    // To track and prevent concurrent operations
-    private var isOperationInProgress = false
+    /**
+     * Setup the button position with proper boundary checking
+     */
+    private fun setupButtonPosition(params: WindowManager.LayoutParams) {
+        // Get saved position with default fallback
+        val savedX = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_X, 100)
+        var savedY = prefs.getInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_Y, 100)
+        
+        // Ensure Y position respects the status bar inset 
+        if (savedY < statusBarInset) {
+            savedY = statusBarInset
+            // Save the corrected position
+            prefs.edit().putInt(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_Y, savedY).apply()
+            Log.d("FloatingButtonHandler", "Adjusted Y position to respect status bar: $savedY")
+        }
+        
+        // Update screen dimensions in case they've changed
+        updateScreenDimensions()
+        
+        // Keep within bounds
+        params.x = keepPositionWithinBounds(savedX, 0, screenWidth - 50)
+        params.y = keepPositionWithinBounds(savedY, statusBarInset, screenHeight - 50)
+    }
     
     /**
-     * Hide the floating button with improved error handling
+     * Create a minimized indicator that can be used to bring back the floating button
+     * This method is now just an alias for createFloatingButton for backward compatibility
+     */
+    fun createMinimizedIndicator() {
+        Log.d("FloatingButtonHandler", "createMinimizedIndicator() called, using unified button creation")
+        createFloatingButton()
+    }
+    
+    /**
+     * Hide the floating button with improved error handling and stability
      */
     fun hideFloatingButton() {
-        if (isOperationInProgress) {
-            Log.d("FloatingButtonHandler", "Another operation in progress, skipping hide request")
+        // If not visible, nothing to do
+        if (!isFloatingButtonVisible) {
+            Log.d("FloatingButtonHandler", "Button already hidden, skipping hide request")
             return
         }
         
-        if (isFloatingButtonVisible && floatingView != null) {
+        // If operation in progress, wait a bit and retry
+        if (isOperationInProgress) {
+            Log.d("FloatingButtonHandler", "Operation in progress, scheduling hide retry after timeout")
+            
+            // Schedule a retry after the operation timeout
+            mainHandler.postDelayed({
+                if (isFloatingButtonVisible && !isOperationInProgress) {
+                    Log.d("FloatingButtonHandler", "Retrying hide after timeout")
+                    hideFloatingButton()
+                } else {
+                    Log.d("FloatingButtonHandler", "Skipping hide retry - button is now hidden or another operation started")
+                }
+            }, OPERATION_TIMEOUT)
+            
+            return
+        }
+        
+        if (floatingView != null) {
+            // Mark operation as in progress with timeout protection
             isOperationInProgress = true
+            
+            // Set a timeout to prevent permanent locks
+            mainHandler.postDelayed({
+                if (isOperationInProgress) {
+                    Log.w("FloatingButtonHandler", "Hide operation timeout - resetting operation flag")
+                    isOperationInProgress = false
+                }
+            }, OPERATION_TIMEOUT)
+            
             try {
                 windowManager.removeView(floatingView)
                 Log.d("FloatingButtonHandler", "Successfully hidden floating button")
@@ -372,9 +341,16 @@ class FloatingButtonHandler(private val service: AccessibilityOcrService) {
                     Log.d("FloatingButtonHandler", "View was already detached")
                 }
             } finally {
+                // Always ensure we update these state flags
                 isFloatingButtonVisible = false
                 floatingView = null
                 isOperationInProgress = false
+            }
+        } else {
+            // If we have no view but flag says visible, correct the state
+            if (isFloatingButtonVisible) {
+                Log.w("FloatingButtonHandler", "Button marked as visible but no view exists, correcting state")
+                isFloatingButtonVisible = false
             }
         }
     }

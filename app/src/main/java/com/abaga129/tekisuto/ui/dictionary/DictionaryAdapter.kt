@@ -79,13 +79,20 @@ class DictionaryAdapter(
                 R.string.dictionary_entry_count,
                 dictionary.entryCount
             )
-            val languagesText = itemView.context.getString(
-                R.string.dictionary_languages,
-                dictionary.sourceLanguage.uppercase(),
-                dictionary.targetLanguage.uppercase()
-            )
             
-            infoTextView.text = "$authorText\n$entryCountText\n$languagesText"
+            // Only include language info if both source and target are available
+            val infoText = if (dictionary.sourceLanguage.isEmpty() || dictionary.targetLanguage.isEmpty()) {
+                "$authorText\n$entryCountText"
+            } else {
+                val languagesText = itemView.context.getString(
+                    R.string.dictionary_languages,
+                    dictionary.sourceLanguage.uppercase(),
+                    dictionary.targetLanguage.uppercase()
+                )
+                "$authorText\n$entryCountText\n$languagesText"
+            }
+            
+            infoTextView.text = infoText
             
             // Show priority
             priorityTextView.text = itemView.context.getString(

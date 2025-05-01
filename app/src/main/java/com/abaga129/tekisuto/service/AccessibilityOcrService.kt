@@ -28,6 +28,7 @@ import com.abaga129.tekisuto.database.ProfileDao
 import com.abaga129.tekisuto.database.ProfileEntity
 import com.abaga129.tekisuto.ui.ImageCropActivity
 import com.abaga129.tekisuto.util.OcrHelper
+import com.abaga129.tekisuto.util.PreferenceKeys
 import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.abaga129.tekisuto.util.ScreenshotHelper
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
@@ -92,6 +93,20 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
     
     // Floating button handler
     private lateinit var floatingButtonHandler: FloatingButtonHandler
+    
+    // App whitelist manager
+    private lateinit var appWhitelistManager: com.abaga129.tekisuto.util.AppWhitelistManager
+    
+    // Current package name
+    private var currentPackageName: String = ""
+    
+    // Prevent processing duplicate events
+    private var lastEventTime = 0L
+    private var lastEventPackage = ""
+    private val EVENT_DEBOUNCE_TIME = 300L // 300ms debounce for events
+    
+    // Track pending visibility operations
+    private var pendingVisibilityRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -145,27 +160,17 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
         // Create menu layout first to ensure it's initialized
         createMenuLayout()
 
-        // Check if the floating button should be visible
-        val shouldShowButton = prefs.getBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
-        
-        if (shouldShowButton) {
-            Log.d("AccessibilityOcrService", "Showing floating button (preference is true or not set)")
+        // Check if the floating button should be visible using the consolidated logic
+        if (shouldShowFloatingButton(currentPackageName)) {
+            Log.d("AccessibilityOcrService", "Showing floating button (initial service connection)")
             floatingButtonHandler.createFloatingButton()
         } else {
-            Log.d("AccessibilityOcrService", "Not showing floating button (preference is false)")
+            Log.d("AccessibilityOcrService", "Not showing floating button (initial service connection)")
         }
     }
-
-    // App whitelist manager
-    private lateinit var appWhitelistManager: com.abaga129.tekisuto.util.AppWhitelistManager
     
-    // Current package name
-    private var currentPackageName: String = ""
-    
-    // Prevent processing duplicate events
-    private var lastEventTime = 0L
-    private var lastEventPackage = ""
-    private val EVENT_DEBOUNCE_TIME = 300L // 300ms debounce for events
+    // Flag to track ongoing visibility operations
+    private var isProcessingVisibilityChange = false
     
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         // Check if this is a window state changed event (app switched)
@@ -179,7 +184,7 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
                 return
             }
             
-            // Debounce events for the same package
+            // More aggressive debounce with longer time window for the same package
             if (packageName == lastEventPackage && 
                 currentTime - lastEventTime < EVENT_DEBOUNCE_TIME) {
                 Log.d("AccessibilityOcrService", "Ignoring duplicate event for $packageName (debounced)")
@@ -190,97 +195,153 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             lastEventTime = currentTime
             lastEventPackage = packageName
             
-            // Only process if the package actually changed
-            if (packageName != currentPackageName) {
+            // Check if package actually changed and we're not already processing a visibility change
+            if (packageName != currentPackageName && !isProcessingVisibilityChange) {
                 Log.d("AccessibilityOcrService", "App changed to: $packageName")
+                
+                // Mark that we're starting a visibility processing operation
+                isProcessingVisibilityChange = true
                 
                 // Update current package name
                 currentPackageName = packageName
                 
-                // Check if the app is in the whitelist and update button visibility
-                checkAppWhitelist(packageName)
+                // Check if this is a whitelisted app and button is already visible - if so, do nothing
+                val isWhitelisted = appWhitelistManager.isAppWhitelisted(packageName)
+                val isButtonVisible = floatingButtonHandler.isVisible()
+                
+                if (isWhitelisted && isButtonVisible) {
+                    Log.d("AccessibilityOcrService", "Whitelisted app with button already visible, skipping visibility change")
+                    isProcessingVisibilityChange = false
+                    return
+                }
+                
+                // Update floating button visibility with our improved method
+                updateFloatingButtonVisibility(packageName)
+                
+                // Reset the processing flag after a delay that's longer than our visibility operations
+                mainHandler.postDelayed({
+                    isProcessingVisibilityChange = false
+                    Log.d("AccessibilityOcrService", "Visibility change processing completed for $packageName")
+                    
+                    // Ensure button is in the correct state after all operations
+                    validateButtonState(packageName)
+                }, 600) // Double the visibility operation delay to ensure it completes
             }
         }
     }
     
-    // Track pending visibility operations
-    private var pendingVisibilityRunnable: Runnable? = null
-
     /**
-     * Check if the current app is in the whitelist and show the button if needed.
-     * The button will appear when needed and will only be hidden when manually closed.
+     * Validates and corrects the button state if needed after operations complete
      */
-    private fun checkAppWhitelist(packageName: String) {
-        // Check if whitelist is enabled and if this app is in the whitelist
+    private fun validateButtonState(packageName: String) {
+        val shouldShow = shouldShowFloatingButton(packageName)
+        val isVisible = floatingButtonHandler.isVisible()
+        val isButtonHiddenManually = !prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
+        
+        if (shouldShow && !isVisible) {
+            Log.d("AccessibilityOcrService", "Final validation: Button should be visible but isn't. Showing button.")
+            floatingButtonHandler.createFloatingButton()
+        } else if (!shouldShow && isVisible && isButtonHiddenManually) {
+            // Only hide the button if it was manually hidden through the "Exit Tekisuto" button
+            Log.d("AccessibilityOcrService", "Final validation: Button should be hidden (manually) but isn't. Hiding button.")
+            floatingButtonHandler.hideFloatingButton()
+        } else {
+            Log.d("AccessibilityOcrService", "Final validation: Button state is correct or maintained (visible=$isVisible).")
+        }
+    }
+    
+    /**
+     * Single source of truth for determining if the floating button should be visible
+     */
+    private fun shouldShowFloatingButton(packageName: String): Boolean {
+        // First check if whitelist is enabled
         val isWhitelistEnabled = appWhitelistManager.isWhitelistEnabled()
-        val isAppWhitelisted = appWhitelistManager.isAppWhitelisted(packageName)
         
-        Log.d("AccessibilityOcrService", "Whitelist enabled: $isWhitelistEnabled, " +
-                "App whitelisted: $isAppWhitelisted, Package: $packageName")
-        
+        return if (isWhitelistEnabled) {
+            // When whitelist is enabled, only show for whitelisted apps
+            appWhitelistManager.isAppWhitelisted(packageName)
+        } else {
+            // When whitelist is disabled, use the general visibility preference
+            prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
+        }
+    }
+    
+    /**
+     * Update floating button visibility based on current app
+     * This method ensures button visibility is persistent when needed
+     */
+    private fun updateFloatingButtonVisibility(packageName: String) {
         // Cancel any pending visibility changes
         pendingVisibilityRunnable?.let { mainHandler.removeCallbacks(it) }
         
-        // Determine whether the button should be shown
-        val shouldShowButton = if (isWhitelistEnabled) {
-            // When whitelist is enabled, only show for whitelisted apps
-            isAppWhitelisted
-        } else {
-            // When whitelist is disabled, use the general visibility preference
-            prefs.getBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
-        }
+        val shouldShow = shouldShowFloatingButton(packageName)
+        val isCurrentlyVisible = floatingButtonHandler.isVisible()
         
-        // Only show the button if it's not already visible and should be shown
-        if (shouldShowButton && !floatingButtonHandler.isVisible()) {
-            pendingVisibilityRunnable = Runnable {
-                if (isWhitelistEnabled && isAppWhitelisted) {
-                    Log.d("AccessibilityOcrService", "Showing floating button for whitelisted app: $packageName")
-                } else {
-                    Log.d("AccessibilityOcrService", "Showing floating button for $packageName")
+        // For whitelisted apps, only ensure the button is shown and never hide it
+        // This prevents toggling issues caused by multiple events
+        if (shouldShow) {
+            // If the button should be shown but isn't visible, show it
+            if (!isCurrentlyVisible) {
+                Log.d("AccessibilityOcrService", "Scheduling show floating button for $packageName")
+                
+                pendingVisibilityRunnable = Runnable {
+                    // Double-check the state before making changes to prevent race conditions
+                    if (!floatingButtonHandler.isVisible()) {
+                        Log.d("AccessibilityOcrService", "Actually showing floating button for $packageName")
+                        floatingButtonHandler.createFloatingButton()
+                    } else {
+                        Log.d("AccessibilityOcrService", "Button already visible, no action needed")
+                    }
+                    pendingVisibilityRunnable = null
                 }
-                floatingButtonHandler.createFloatingButton()
+                
+                // Add a slight delay to allow the app transition to complete
+                mainHandler.postDelayed(pendingVisibilityRunnable!!, 300)
+            } else {
+                Log.d("AccessibilityOcrService", "Button already visible for whitelisted app $packageName, maintaining visibility")
             }
+        } else if (!shouldShow && isCurrentlyVisible) {
+            // Only hide the button if it was manually closed with "Exit Tekisuto" button
+            // Check if the button was manually hidden (not just temporarily hidden)
+            val isButtonHiddenManually = !prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
             
-            // Add a slight delay to allow the app transition to complete
-            mainHandler.postDelayed(pendingVisibilityRunnable!!, 300)
+            if (isButtonHiddenManually) {
+                Log.d("AccessibilityOcrService", "Scheduling hide floating button for $packageName (manually hidden)")
+                
+                pendingVisibilityRunnable = Runnable {
+                    // Double-check the state before making changes
+                    if (floatingButtonHandler.isVisible()) {
+                        Log.d("AccessibilityOcrService", "Actually hiding floating button for $packageName")
+                        floatingButtonHandler.hideFloatingButton()
+                    } else {
+                        Log.d("AccessibilityOcrService", "Button already hidden, no action needed")
+                    }
+                    pendingVisibilityRunnable = null
+                }
+                
+                // Add a slight delay to allow the app transition to complete
+                mainHandler.postDelayed(pendingVisibilityRunnable!!, 300)
+            } else {
+                Log.d("AccessibilityOcrService", "Button visibility maintained despite shouldShow=$shouldShow")
+            }
+        } else {
+            Log.d("AccessibilityOcrService", "No visibility change needed for $packageName (shouldShow=$shouldShow, isVisible=$isCurrentlyVisible)")
         }
     }
     
     /**
      * Refresh the floating button visibility based on current settings
-     * This is called when the whitelist is disabled to ensure the button
-     * shows correctly for all apps
+     * This is called when settings change to ensure the button visibility is updated
      */
     fun refreshFloatingButtonVisibility() {
-        // Cancel any pending visibility changes
-        pendingVisibilityRunnable?.let { mainHandler.removeCallbacks(it) }
-        
         if (currentPackageName.isNotEmpty()) {
             Log.d("AccessibilityOcrService", "Refreshing floating button visibility for $currentPackageName")
-            
-            // Check whitelist settings
-            val isWhitelistEnabled = appWhitelistManager.isWhitelistEnabled()
-            val isAppWhitelisted = appWhitelistManager.isAppWhitelisted(currentPackageName)
-            
-            // Determine whether the button should be shown
-            val shouldShowButton = if (isWhitelistEnabled) {
-                isAppWhitelisted
-            } else {
-                prefs.getBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
-            }
-            
-            // Only show the button if needed
-            if (shouldShowButton && !floatingButtonHandler.isVisible()) {
-                mainHandler.postDelayed({
-                    Log.d("AccessibilityOcrService", "Showing floating button during refresh for $currentPackageName")
-                    floatingButtonHandler.createFloatingButton()
-                }, 300)
-            }
+            updateFloatingButtonVisibility(currentPackageName)
         } else {
             Log.d("AccessibilityOcrService", "No current package name, checking general visibility preference")
             
             // Determine if button should be visible based on general preference
-            val shouldShowButton = prefs.getBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
+            val shouldShowButton = prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true)
             
             // Only show the button if needed
             if (shouldShowButton && !floatingButtonHandler.isVisible()) {
@@ -338,7 +399,7 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             floatingButtonHandler.createFloatingButton()
             
             // Update the preference
-            prefs.edit().putBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, true).apply()
+            prefs.edit().putBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true).apply()
         }
     }
     
@@ -411,43 +472,14 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             loadCurrentProfile()
         }
         
-        // Handle floating button visibility preference changes
-        if (key == com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE) {
-            val shouldShowButton = sharedPreferences?.getBoolean(key, true) ?: true
+        // Handle floating button visibility preference or whitelist changes
+        if (key == PreferenceKeys.FLOATING_BUTTON_VISIBLE || 
+            key == PreferenceKeys.ENABLE_APP_WHITELIST || 
+            key == PreferenceKeys.APP_WHITELIST) {
             
-            if (shouldShowButton) {
-                // Preference changed to show the button
-                Log.d("AccessibilityOcrService", "Preference changed to show floating button")
-                
-                if (!floatingButtonHandler.isVisible()) {
-                    Log.d("AccessibilityOcrService", "Showing floating button due to preference change")
-                    floatingButtonHandler.createFloatingButton()
-                }
-            } else {
-                // Preference changed to hide the button
-                Log.d("AccessibilityOcrService", "Preference changed to hide floating button")
-                
-                if (floatingButtonHandler.isVisible()) {
-                    Log.d("AccessibilityOcrService", "Hiding floating button due to preference change")
-                    floatingButtonHandler.hideFloatingButton()
-                }
-            }
+            Log.d("AccessibilityOcrService", "Button visibility or whitelist settings changed")
+            refreshFloatingButtonVisibility()
         }
-        
-        // Handle app whitelist preference changes
-        if (key == com.abaga129.tekisuto.util.PreferenceKeys.ENABLE_APP_WHITELIST || 
-            key == com.abaga129.tekisuto.util.PreferenceKeys.APP_WHITELIST) {
-            
-            Log.d("AccessibilityOcrService", "App whitelist settings changed")
-            
-            // Re-check current app against whitelist
-            if (currentPackageName.isNotEmpty()) {
-                checkAppWhitelist(currentPackageName)
-            }
-        }
-        
-        // Other preference changes don't need special handling in the service
-        // since they are directly accessed from SharedPreferences when needed
     }
 
     private fun createMenuLayout() {
@@ -481,7 +513,7 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             floatingButtonHandler.hideFloatingButton()
             
             // Save the state in shared preferences
-            prefs.edit().putBoolean(com.abaga129.tekisuto.util.PreferenceKeys.FLOATING_BUTTON_VISIBLE, false).apply()
+            prefs.edit().putBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, false).apply()
 
             // Show a toast notification to let the user know the button has been hidden
             Handler(Looper.getMainLooper()).post {
@@ -503,6 +535,10 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             createMenuLayout()
         }
 
+        // Store floating button visibility state before showing menu
+        val wasButtonVisible = floatingButtonHandler.isVisible()
+        Log.d("AccessibilityOcrService", "Floating button visible before showing menu: $wasButtonVisible")
+
         // Create window parameters with appropriate theme styling
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -522,6 +558,14 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             windowManager.addView(menuLayout, params)
             isMenuVisible = true
             Log.d("AccessibilityOcrService", "Menu successfully shown")
+            
+            // Restore floating button if it disappeared during menu showing
+            if (wasButtonVisible && !floatingButtonHandler.isVisible()) {
+                Log.d("AccessibilityOcrService", "Restoring floating button after showing menu")
+                mainHandler.postDelayed({
+                    floatingButtonHandler.createFloatingButton()
+                }, 100)
+            }
         } catch (e: Exception) {
             Log.e("AccessibilityOcrService", "Error showing menu", e)
         }
@@ -529,6 +573,11 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
 
     private fun hideMenu() {
         Log.d("AccessibilityOcrService", "hideMenu() called")
+        
+        // Store floating button visibility state before hiding menu
+        val wasButtonVisible = floatingButtonHandler.isVisible()
+        Log.d("AccessibilityOcrService", "Floating button visible before hiding menu: $wasButtonVisible")
+        
         if (isMenuVisible) {
             try {
                 windowManager.removeView(menuLayout)
@@ -537,6 +586,14 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
                 Log.e("AccessibilityOcrService", "Error hiding menu", e)
             } finally {
                 isMenuVisible = false
+            }
+            
+            // Ensure floating button visibility is maintained after menu is hidden
+            if (wasButtonVisible && !floatingButtonHandler.isVisible()) {
+                Log.d("AccessibilityOcrService", "Restoring floating button after hiding menu")
+                mainHandler.postDelayed({
+                    floatingButtonHandler.createFloatingButton()
+                }, 100)
             }
         } else {
             Log.d("AccessibilityOcrService", "Menu is not visible, nothing to hide")
@@ -551,7 +608,14 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
         if (isMenuVisible) {
             hideMenu()
         } else {
+            // Show the menu without hiding the floating button
             showMenu()
+            
+            // Ensure the button remains visible
+            if (!floatingButtonHandler.isVisible()) {
+                Log.d("AccessibilityOcrService", "Restoring floating button visibility while showing menu")
+                floatingButtonHandler.createFloatingButton()
+            }
         }
     }
 
@@ -563,61 +627,88 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
         performOcr()
     }
 
+    /**
+     * Perform OCR process with simplified screenshot handling
+     */
     private fun performOcr() {
         Log.d("AccessibilityOcrService", "performOcr() called")
         // Hide the menu before taking the screenshot
         hideMenu()
         
-        // Store the floating button visibility state
+        // Store the floating button visibility state - also check the preference
         val wasButtonVisible = floatingButtonHandler.isVisible()
+        // Check if button should be visible generally, not just temporarily
+        val shouldRestoreButton = wasButtonVisible || 
+                                 (shouldShowFloatingButton(currentPackageName) && 
+                                  prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true))
+        
+        Log.d("AccessibilityOcrService", "Button state before OCR: visible=$wasButtonVisible, shouldRestore=$shouldRestoreButton")
         
         // Temporarily hide the floating button before screenshot
-        if (wasButtonVisible) {
+        if (floatingButtonHandler.isVisible()) {
             Log.d("AccessibilityOcrService", "Temporarily hiding floating button for screenshot")
             floatingButtonHandler.hideFloatingButton()
         }
 
-        // Add a small delay to ensure the UI elements are fully hidden before taking the screenshot
+        // Small delay before taking screenshot
         mainHandler.postDelayed({
             Log.d("AccessibilityOcrService", "Taking screenshot after delay")
-            // Now take the screenshot
             screenshotHelper.takeScreenshot { bitmap ->
-                // Restore the floating button immediately after screenshot is taken
-                if (wasButtonVisible) {
-                    Log.d("AccessibilityOcrService", "Restoring floating button after screenshot")
-                    floatingButtonHandler.createFloatingButton()
-                }
-                
-                if (bitmap != null) {
-                    Log.d("AccessibilityOcrService", "Screenshot captured successfully")
-                    // Save screenshot temporarily
-                    val screenshotFile = saveScreenshotToFile(bitmap)
-                    screenshotFile?.let {
-                        Log.d("AccessibilityOcrService", "Screenshot saved to: ${it.absolutePath}")
-                        // Launch the image crop activity
-                        val intent = Intent(this, ImageCropActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            putExtra("SCREENSHOT_PATH", it.absolutePath)
-                            
-                            // Pass current profile settings
-                            val profileId = currentProfile?.id ?: -1L
-                            putExtra("PROFILE_ID", profileId)
-                        }
-
-                        try {
-                            Log.d("AccessibilityOcrService", "Starting ImageCropActivity")
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            Log.e("AccessibilityOcrService", "Error starting activity: ${e.message}")
-                        }
-                    } ?: run {
-                        Log.e("AccessibilityOcrService", "Failed to save screenshot to file")
-                    }
-                } else {
-                    Log.e("AccessibilityOcrService", "Screenshot capture failed, bitmap is null")
-                }
+                // Process the screenshot result
+                processScreenshotResult(bitmap, shouldRestoreButton)
             }
-        }, 200) // 200ms delay should be enough for the UI elements to disappear from screen
+        }, 200)
+    }
+    
+    /**
+     * Process the screenshot result and launch image crop activity if successful
+     */
+    private fun processScreenshotResult(bitmap: Bitmap?, shouldRestoreButton: Boolean) {
+        // Restore the floating button with some delay to ensure it happens
+        // after any potential window transitions
+        if (shouldRestoreButton) {
+            mainHandler.postDelayed({
+                Log.d("AccessibilityOcrService", "Restoring floating button after screenshot")
+                if (!floatingButtonHandler.isVisible()) {
+                    floatingButtonHandler.createFloatingButton()
+                    Log.d("AccessibilityOcrService", "Button restored successfully")
+                } else {
+                    Log.d("AccessibilityOcrService", "Button already visible, no need to restore")
+                }
+            }, 300)
+        }
+        
+        if (bitmap != null) {
+            Log.d("AccessibilityOcrService", "Screenshot captured successfully")
+            // Save screenshot temporarily
+            val screenshotFile = saveScreenshotToFile(bitmap)
+            screenshotFile?.let {
+                Log.d("AccessibilityOcrService", "Screenshot saved to: ${it.absolutePath}")
+                // Launch the image crop activity
+                val intent = Intent(this, ImageCropActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("SCREENSHOT_PATH", it.absolutePath)
+                    
+                    // Pass current profile settings
+                    val profileId = currentProfile?.id ?: -1L
+                    putExtra("PROFILE_ID", profileId)
+                    
+                    // Pass flag to indicate if button should be restored
+                    putExtra("RESTORE_FLOATING_BUTTON", shouldRestoreButton)
+                }
+
+                try {
+                    Log.d("AccessibilityOcrService", "Starting ImageCropActivity")
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e("AccessibilityOcrService", "Error starting activity: ${e.message}")
+                }
+            } ?: run {
+                Log.e("AccessibilityOcrService", "Failed to save screenshot to file")
+            }
+        } else {
+            Log.e("AccessibilityOcrService", "Screenshot capture failed, bitmap is null")
+        }
     }
 
     private fun saveScreenshotToFile(bitmap: Bitmap): File? {

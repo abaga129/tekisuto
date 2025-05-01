@@ -85,13 +85,13 @@ class DictionaryLanguageHelper(private val context: Context) {
     
     /**
      * Get the source language for a dictionary
-     * @return Azure-compatible language code
+     * @return Azure-compatible language code or null if language is not available
      */
     fun getSourceLanguage(dictionaryId: Long): String? {
         val sourceKey = KEY_SOURCE.format(dictionaryId)
         val language = prefs.getString(sourceKey, null)
         
-        if (language != null) {
+        if (language != null && language.isNotBlank()) {
             return mapToAzureLanguageCode(language)
         }
         
@@ -100,13 +100,13 @@ class DictionaryLanguageHelper(private val context: Context) {
     
     /**
      * Get the target language for a dictionary
-     * @return Azure-compatible language code
+     * @return Azure-compatible language code or null if language is not available
      */
     fun getTargetLanguage(dictionaryId: Long): String? {
         val targetKey = KEY_TARGET.format(dictionaryId)
         val language = prefs.getString(targetKey, null)
         
-        if (language != null) {
+        if (language != null && language.isNotBlank()) {
             return mapToAzureLanguageCode(language)
         }
         
@@ -115,10 +115,11 @@ class DictionaryLanguageHelper(private val context: Context) {
     
     /**
      * Map a language code to Azure-compatible format
+     * @return Azure-compatible language code or null if input is empty
      */
-    fun mapToAzureLanguageCode(code: String): String {
+    fun mapToAzureLanguageCode(code: String): String? {
         // Handle null or empty
-        if (code.isBlank()) return "en"
+        if (code.isBlank()) return null
         
         // Normalize: lowercase and trim
         val normalizedCode = code.lowercase().trim()
@@ -152,8 +153,8 @@ class DictionaryLanguageHelper(private val context: Context) {
             }
         }
         
-        // Default to English if we can't determine the language
-        Log.w(TAG, "Could not map language code: $code - defaulting to English")
-        return "en"
+        // Log warning but don't default to English anymore
+        Log.w(TAG, "Could not map language code: $code - returning null")
+        return null
     }
 }
