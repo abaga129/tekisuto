@@ -7,12 +7,15 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.database.WordFrequencyEntity
+import com.abaga129.tekisuto.service.FrequencyDataService
 import com.abaga129.tekisuto.util.ProfileSettingsManager
 import kotlinx.coroutines.launch
 
 class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(application) {
     
     private lateinit var repository: DictionaryRepository
+    private lateinit var frequencyService: FrequencyDataService
     private val profileSettingsManager = ProfileSettingsManager(application)
     
     // Search query text
@@ -23,6 +26,10 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
     private val _entries = MutableLiveData<List<DictionaryEntryEntity>>()
     val entries: LiveData<List<DictionaryEntryEntity>> = _entries
     
+    // Frequency data for dictionary entries
+    private val _frequencyData = MutableLiveData<Map<Long, WordFrequencyEntity>>()
+    val frequencyData: LiveData<Map<Long, WordFrequencyEntity>> = _frequencyData
+    
     // Loading state
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
@@ -31,11 +38,16 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
     private val _entryCount = MutableLiveData<Int>(0)
     val entryCount: LiveData<Int> = _entryCount
     
+    // Total frequency count for statistics
+    private val _frequencyCount = MutableLiveData<Int>(0)
+    val frequencyCount: LiveData<Int> = _frequencyCount
+    
     /**
      * Initialize repository
      */
     fun initRepository(repository: DictionaryRepository) {
         this.repository = repository
+        this.frequencyService = FrequencyDataService(repository)
         loadDictionaryStats()
         checkFrequencyData()
     }
@@ -59,6 +71,11 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                     repository.getDictionaryEntryCount()
                 }
                 _entryCount.value = count
+                
+                // Get total frequency count
+                val frequencyCount = frequencyService.getTotalFrequencyCount()
+                _frequencyCount.value = frequencyCount
+                android.util.Log.d("DictionaryViewModel", "Total frequency entries: $frequencyCount")
             } catch (e: Exception) {
                 android.util.Log.e("DictionaryViewModel", "Error loading dictionary stats", e)
             }
@@ -71,10 +88,6 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
     private fun checkFrequencyData() {
         viewModelScope.launch {
             try {
-                // Get total frequency count across all dictionaries
-                val totalFrequencyCount = repository.getWordFrequencyCount()
-                android.util.Log.d("DictionaryViewModel", "Total frequency entries: $totalFrequencyCount")
-                
                 // Get all dictionaries
                 val dictionaries = repository.getAllDictionaries()
                 android.util.Log.d("DictionaryViewModel", "Total dictionaries: ${dictionaries.size}")
@@ -108,6 +121,7 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                 repository.clearAllDictionaries()
                 loadDictionaryStats()
                 _entries.value = emptyList()
+                _frequencyData.value = emptyMap()
                 android.util.Log.d("DictionaryViewModel", "Dictionary cleared successfully")
             } catch (e: Exception) {
                 android.util.Log.e("DictionaryViewModel", "Error clearing dictionary", e)
@@ -127,6 +141,7 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
             searchDictionary(query)
         } else {
             _entries.value = emptyList()
+            _frequencyData.value = emptyMap()
         }
     }
     
@@ -153,6 +168,11 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                 _entries.value = results
                 android.util.Log.d("DictionaryViewModel", "Search returned ${results.size} results")
                 
+                // Get frequency data for all results
+                val frequencies = frequencyService.getFrequenciesForEntries(results)
+                _frequencyData.value = frequencies
+                android.util.Log.d("DictionaryViewModel", "Found frequency data for ${frequencies.size}/${results.size} entries")
+                
                 // Log a few entries for debugging
                 results.take(3).forEachIndexed { index, entry ->
                     android.util.Log.d("DictionaryViewModel", "Result $index: term=${entry.term}, " +
@@ -160,12 +180,18 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                             "definition=${entry.definition.take(30)}..." +
                             (if (entry.term.equals(query, ignoreCase = true)) " [EXACT MATCH]" else ""))
                     
-                    // Check for frequency data
-                    checkFrequencyForEntry(entry)
+                    // Log frequency data if available
+                    val frequency = frequencies[entry.id]
+                    if (frequency != null) {
+                        android.util.Log.d("DictionaryViewModel", "✓ Frequency data for '${entry.term}': #${frequency.frequency}")
+                    } else {
+                        android.util.Log.d("DictionaryViewModel", "✗ No frequency data for '${entry.term}'")
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("DictionaryViewModel", "Error searching dictionary", e)
                 _entries.value = emptyList()
+                _frequencyData.value = emptyMap()
             } finally {
                 _isLoading.value = false
             }
@@ -173,33 +199,31 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
     }
     
     /**
-     * Check and log frequency data for an entry
+     * Get frequency data for a specific entry
      */
-    private fun checkFrequencyForEntry(entry: DictionaryEntryEntity) {
+    fun getFrequencyForEntry(entry: DictionaryEntryEntity): WordFrequencyEntity? {
+        return _frequencyData.value?.get(entry.id)
+    }
+    
+    /**
+     * Manually fetch frequency data for an entry (useful for debugging)
+     */
+    fun fetchFrequencyForEntry(entry: DictionaryEntryEntity) {
         viewModelScope.launch {
             try {
-                val frequencyData = repository.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
+                val frequencyData = frequencyService.getFrequencyForEntry(entry)
                 if (frequencyData != null) {
-                    android.util.Log.d("DictionaryViewModel", "✓ Frequency data for '${entry.term}': #${frequencyData.frequency}")
+                    // Update the frequency data map
+                    val currentMap = _frequencyData.value?.toMutableMap() ?: mutableMapOf()
+                    currentMap[entry.id] = frequencyData
+                    _frequencyData.value = currentMap
+                    
+                    android.util.Log.d("DictionaryViewModel", "Manually fetched frequency data for '${entry.term}': #${frequencyData.frequency}")
                 } else {
-                    android.util.Log.d("DictionaryViewModel", "✗ No frequency data for '${entry.term}' in dictionary ${entry.dictionaryId}")
-                    
-                    // Check frequency table stats
-                    val count = repository.getWordFrequencyCount(entry.dictionaryId)
-                    android.util.Log.d("DictionaryViewModel", "Dictionary ${entry.dictionaryId} has $count frequency entries")
-                    
-                    // Get sample frequency entries
-                    val samples = repository.getWordFrequencies(entry.dictionaryId).take(3)
-                    if (samples.isNotEmpty()) {
-                        samples.forEach { freq ->
-                            android.util.Log.d("DictionaryViewModel", "Sample frequency: word='${freq.word}', frequency=#${freq.frequency}")
-                        }
-                    } else {
-                        android.util.Log.d("DictionaryViewModel", "No frequency samples available for dictionary ${entry.dictionaryId}")
-                    }
+                    android.util.Log.d("DictionaryViewModel", "No frequency data found for '${entry.term}' when manually fetching")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("DictionaryViewModel", "Error checking frequency data", e)
+                android.util.Log.e("DictionaryViewModel", "Error manually fetching frequency data", e)
             }
         }
     }
@@ -232,18 +256,28 @@ class DictionaryBrowserViewModel(application: Application) : AndroidViewModel(ap
                 _entries.value = results
                 android.util.Log.d("DictionaryViewModel", "Loaded ${results.size} entries for profileId: $profileId")
                 
+                // Get frequency data for all results
+                val frequencies = frequencyService.getFrequenciesForEntries(results)
+                _frequencyData.value = frequencies
+                
                 // Log a few entries for debugging
                 results.take(3).forEachIndexed { index, entry ->
                     android.util.Log.d("DictionaryViewModel", "Entry $index: term=${entry.term}, " +
                             "reading=${entry.reading}, pos=${entry.partOfSpeech}, " +
                             "definition=${entry.definition.take(30)}...")
                     
-                    // Check for frequency data
-                    checkFrequencyForEntry(entry)
+                    // Log frequency data if available
+                    val frequency = frequencies[entry.id]
+                    if (frequency != null) {
+                        android.util.Log.d("DictionaryViewModel", "✓ Frequency data for '${entry.term}': #${frequency.frequency}")
+                    } else {
+                        android.util.Log.d("DictionaryViewModel", "✗ No frequency data for '${entry.term}'")
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("DictionaryViewModel", "Error loading entries", e)
                 _entries.value = emptyList()
+                _frequencyData.value = emptyMap()
             } finally {
                 _isLoading.value = false
             }

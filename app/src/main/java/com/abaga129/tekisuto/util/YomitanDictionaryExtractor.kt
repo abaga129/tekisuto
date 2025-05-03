@@ -116,17 +116,31 @@ class YomitanDictionaryExtractor {
                 return false
             }
             
-            // Check for at least one term bank file
+            // Check for term bank files
             val termBankFiles = directory.listFiles { file ->
                 file.name.matches(Regex("term_bank_\\d+\\.json"))
-            }
+            } ?: emptyArray()
             
-            if (termBankFiles.isNullOrEmpty()) {
-                Log.e(TAG, "No term bank files found in extracted files")
+            // Check for term meta bank files (for frequency dictionaries)
+            val termMetaBankFiles = directory.listFiles { file ->
+                file.name.matches(Regex("term_meta_bank_\\d+\\.json"))
+            } ?: emptyArray()
+            
+            // Either term bank files or term meta bank files must be present
+            if (termBankFiles.isEmpty() && termMetaBankFiles.isEmpty()) {
+                Log.e(TAG, "Neither term bank files nor term meta bank files found in extracted files")
                 return false
             }
             
-            Log.d(TAG, "Found ${termBankFiles.size} term bank files")
+            // Log what we found
+            if (termBankFiles.isNotEmpty()) {
+                Log.d(TAG, "Found ${termBankFiles.size} term bank files")
+            }
+            
+            if (termMetaBankFiles.isNotEmpty()) {
+                Log.d(TAG, "Found ${termMetaBankFiles.size} term meta bank files")
+            }
+            
             return true
         }
         

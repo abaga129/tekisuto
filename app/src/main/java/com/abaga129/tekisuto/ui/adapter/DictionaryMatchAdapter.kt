@@ -20,6 +20,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.emoji2.text.EmojiCompat
@@ -31,6 +32,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
+import com.abaga129.tekisuto.util.FrequencyShieldHelper
 import com.abaga129.tekisuto.util.LanguageDetector
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
@@ -110,10 +112,16 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val termTextView: TextView = itemView.findViewById(R.id.term_text)
         private val readingTextView: TextView = itemView.findViewById(R.id.reading_text)
         private val partOfSpeechTextView: TextView = itemView.findViewById(R.id.part_of_speech_text)
+        private val frequencyTextView: TextView = itemView.findViewById(R.id.frequency_text)
         private val definitionTextView: TextView = itemView.findViewById(R.id.definition_text)
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
         private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
-        private val cardView: androidx.cardview.widget.CardView = itemView.findViewById(R.id.dictionary_item_card)
+        private val cardView: CardView = itemView.findViewById(R.id.dictionary_item_card)
+        
+        // Frequency shield views
+        private val frequencyShieldContainer: LinearLayout? = itemView.findViewById(R.id.shield_container)
+        private val dictionaryNameView: TextView? = itemView.findViewById(R.id.shield_dictionary_name)
+        private val frequencyValueView: TextView? = itemView.findViewById(R.id.shield_frequency_value)
 
         /**
          * Get theme-aware surface color to respect light/dark theme
@@ -182,296 +190,59 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 partOfSpeechTextView.visibility = View.GONE
             }
 
-            // Handle the dictionary badge with frequency information
-            lifecycleScope?.launch {
-                try {
-                    // Programmatically create and display badge when needed, rather than relying on inflated layout
-                    // Get the dictionary name
-                    val dictionaryMeta = dictionaryRepository?.getDictionaryMetadata(entry.dictionaryId)
-                    val dictionaryName = dictionaryMeta?.title ?: "DICT"
-
-                    // Get frequency data for this word in this dictionary
-                    val frequencyEntity = dictionaryRepository?.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
-
-                    // DEBUG: Add detailed logging about frequency data
-                    Log.d("DictionaryAdapter", "Frequency lookup for '${entry.term}' in dictionary ${entry.dictionaryId}")
-                    Log.d("DictionaryAdapter", "Frequency data found: ${frequencyEntity != null}")
-                    if (frequencyEntity != null) {
-                        Log.d("DictionaryAdapter", "Frequency value: #${frequencyEntity.frequency}")
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        // IMPORTANT: Find or create our badge view
-                        // First try to find an existing badge (unlikely to succeed based on previous attempts)
-                        var badgeView = itemView.findViewById<androidx.cardview.widget.CardView>(R.id.dictionary_badge)
-                        var badgeContainer: LinearLayout? = null
-                        var nameTextView: TextView? = null
-                        var valueTextView: TextView? = null
-
-                        // If no badge found, create our own programmatically
-                        if (badgeView == null) {
-                            // Get the main container where the badge should be added - simplified approach
-                            // The main card contains a ConstraintLayout as its first child
-                            val cardView = itemView.findViewById<androidx.cardview.widget.CardView>(R.id.dictionary_item_card)
-                            val constraintLayout = if (cardView != null && cardView.childCount > 0) {
-                                cardView.getChildAt(0) as? androidx.constraintlayout.widget.ConstraintLayout
-                            } else null
-
-                            // Detailed logging about the view hierarchy
-                            Log.d("DictionaryAdapter", "Card view found: ${cardView != null}")
-                            if (cardView != null) {
-                                Log.d("DictionaryAdapter", "Card view child count: ${cardView.childCount}")
-                                if (cardView.childCount > 0) {
-                                    Log.d("DictionaryAdapter", "First child type: ${cardView.getChildAt(0)?.javaClass?.simpleName}")
-                                }
-                            }
-
-                            if (constraintLayout != null) {
-                                Log.d("DictionaryAdapter", "Creating badge programmatically")
-
-                                // Generate consistent IDs for our badge components
-                                val badgeId = 100001
-                                val containerId = 100002
-                                val nameTextId = 100003
-                                val valueTextId = 100004
-
-                                // Create badge card view
-                                badgeView = androidx.cardview.widget.CardView(itemView.context).apply {
-                                    id = badgeId  // Use a consistent ID
-                                    radius = itemView.context.resources.getDimension(R.dimen.card_corner_radius) / 2
-                                    useCompatPadding = false
-                                    cardElevation = 0f
-                                    setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.badge_background))
-                                    visibility = View.GONE // Start hidden
-                                    tag = "custom_dictionary_badge" // Add a tag for identification
-
-                                    // Set fixed width/height constraints for more predictable layout
-                                    val params = ViewGroup.LayoutParams(
-                                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        ViewGroup.LayoutParams.WRAP_CONTENT
-                                    )
-                                    layoutParams = params
-                                }
-
-                                // Create linear layout for badge content
-                                badgeContainer = LinearLayout(itemView.context).apply {
-                                    id = containerId
-                                    orientation = LinearLayout.VERTICAL
-                                    setPadding(
-                                        dpToPx(4, itemView.context),
-                                        dpToPx(4, itemView.context),
-                                        dpToPx(4, itemView.context),
-                                        dpToPx(4, itemView.context)
-                                    )
-                                }
-
-                                // Create dictionary name text view
-                                nameTextView = TextView(itemView.context).apply {
-                                    id = nameTextId
-                                    textSize = 10f
-                                    setTextColor(Color.WHITE)
-                                    typeface = Typeface.DEFAULT_BOLD
-                                    maxLines = 1
-                                    ellipsize = TextUtils.TruncateAt.END
-                                }
-
-                                // Create frequency value text view
-                                valueTextView = TextView(itemView.context).apply {
-                                    id = valueTextId
-                                    textSize = 9f
-                                    setTextColor(Color.WHITE)
-                                    maxLines = 1
-                                    ellipsize = TextUtils.TruncateAt.END
-                                }
-
-                                // Add text views to container
-                                badgeContainer.addView(nameTextView)
-                                badgeContainer.addView(valueTextView)
-
-                                // Add container to badge
-                                badgeView.addView(badgeContainer)
-
-                                // Add badge to constraint layout with proper positioning
-                                val layoutParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                                    ViewGroup.LayoutParams.WRAP_CONTENT
-                                ).apply {
-                                    topToBottom = R.id.term_text
-                                    startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                                    topMargin = dpToPx(4, itemView.context)
-
-                                    // We'll update the definition text constraints after adding the badge
-                                }
-
-                                constraintLayout.addView(badgeView, layoutParams)
-
-                                // Make part_of_speech_text view constrained to our new badge view
-                                val posTextView = itemView.findViewById<TextView>(R.id.part_of_speech_text)
-                                if (posTextView != null) {
-                                    val posParams = posTextView.layoutParams as ConstraintLayout.LayoutParams
-                                    posParams.startToEnd = badgeView.id
-                                    posTextView.layoutParams = posParams
-                                }
-
-                                // Now that the badge is added to the layout, fix the definition text constraints
-                                val definitionTextView = itemView.findViewById<TextView>(R.id.definition_text)
-                                if (definitionTextView != null) {
-                                    try {
-                                        val defParams = definitionTextView.layoutParams as? ConstraintLayout.LayoutParams
-                                        if (defParams != null) {
-                                            // Update definition to be below our badge instead of the dictionary_badge from layout
-                                            defParams.topToBottom = badgeView.id
-
-                                            // Apply the updated constraints
-                                            definitionTextView.layoutParams = defParams
-
-                                            // Force a layout pass to update the constraints
-                                            definitionTextView.requestLayout()
-
-                                            Log.d("DictionaryAdapter", "Updated definition text constraints to be below badge ID: ${badgeView.id}")
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("DictionaryAdapter", "Error updating definition constraints", e)
-                                    }
-                                }
-
-                                Log.d("DictionaryAdapter", "Badge created and added to layout")
+            // Check for frequency data and display if available
+            // Hide legacy frequency text view (now handled by shield)
+            frequencyTextView.visibility = View.GONE
+            
+            // Use the shield for frequency display if we have the right views
+            if (dictionaryRepository != null && lifecycleScope != null && 
+                frequencyShieldContainer != null && dictionaryNameView != null && frequencyValueView != null) {
+                
+                // Initially hide the shield until we have data
+                FrequencyShieldHelper.hideFrequencyShield(frequencyShieldContainer)
+                
+                lifecycleScope.launch {
+                    try {
+                        // Fetch frequency data for this term and dictionary
+                        val frequencyData = dictionaryRepository.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
+                        
+                        // Get dictionary metadata to display the name
+                        val dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(entry.dictionaryId)
+                        
+                        // Update UI on the main thread
+                        withContext(Dispatchers.Main) {
+                            if (frequencyData != null && dictionaryMetadata != null) {
+                                // Get a shortened dictionary name suitable for display in the shield
+                                val shortDictionaryName = FrequencyShieldHelper.getShortDictionaryName(dictionaryMetadata.title)
+                                
+                                // Configure the shield with the data
+                                FrequencyShieldHelper.setupFrequencyShield(
+                                    itemView.context,
+                                    frequencyShieldContainer,
+                                    dictionaryNameView,
+                                    frequencyValueView,
+                                    shortDictionaryName,
+                                    frequencyData.frequency
+                                )
+                                
+                                Log.d("DictionaryAdapter", "Displayed frequency shield for '${entry.term}': ${shortDictionaryName} #${frequencyData.frequency}")
                             } else {
-                                Log.e("DictionaryAdapter", "Could not find constraint layout to add badge")
-                            }
-                        } else {
-                            // If badge already exists, get the child views
-                            Log.d("DictionaryAdapter", "Badge already exists, getting child views")
-                            badgeContainer = badgeView.getChildAt(0) as? LinearLayout
-                            if (badgeContainer != null && badgeContainer.childCount >= 2) {
-                                nameTextView = badgeContainer.getChildAt(0) as? TextView
-                                valueTextView = badgeContainer.getChildAt(1) as? TextView
+                                // Hide the shield if we don't have data
+                                FrequencyShieldHelper.hideFrequencyShield(frequencyShieldContainer)
+                                Log.d("DictionaryAdapter", "No frequency data available for '${entry.term}'")
                             }
                         }
-
-                        // If we have all necessary views, set the data
-                        if (badgeView != null && nameTextView != null && valueTextView != null) {
-                            nameTextView.text = dictionaryName
-
-                            // Get frequency data from the repository
-                            val dictionaryMeta = dictionaryRepository?.getDictionaryMetadata(entry.dictionaryId)
-
-                            // If dictionary metadata exists, show the badge with or without frequency
-                            if (dictionaryMeta != null) {
-                                // Always set the dictionary name
-                                nameTextView.text = dictionaryMeta.title.take(4) // Keep it short
-
-                                // Display frequency data if available and valid
-                                if (frequencyEntity != null && frequencyEntity.frequency > 0) {
-                                    // Format frequency to show rank (e.g., #685, 18667)
-                                    val frequencyRank = frequencyEntity.frequency
-                                    valueTextView.text = "#$frequencyRank"
-
-                                    // Update the badge background color based on frequency
-                                    val color = when {
-                                        frequencyRank <= 100 -> ContextCompat.getColor(itemView.context, R.color.badge_common) // Very common (top 100)
-                                        frequencyRank <= 1000 -> ContextCompat.getColor(itemView.context, R.color.badge_uncommon) // Common (top 1000)
-                                        else -> ContextCompat.getColor(itemView.context, R.color.badge_rare) // Less common
-                                    }
-                                    badgeView.setCardBackgroundColor(color)
-                                    Log.d("DictionaryAdapter", "Badge card color set to $color for frequency $frequencyRank")
-                                } else {
-                                    // No frequency data, but we still want to show dictionary name
-                                    valueTextView.text = "N/A"
-                                    badgeView.setCardBackgroundColor(ContextCompat.getColor(itemView.context, R.color.badge_background))
-                                    Log.d("DictionaryAdapter", "No frequency data, showing badge with dict name only")
-                                }
-
-                                // Always show the badge when we have dictionary metadata
-                                badgeView.visibility = View.VISIBLE
-                                Log.d("DictionaryAdapter", "Badge set to VISIBLE for word '${entry.term}'")
-                            } else {
-                                // No dictionary metadata, hide the badge
-                                badgeView.visibility = View.GONE
-                                Log.d("DictionaryAdapter", "Badge set to GONE for word '${entry.term}' - no dictionary metadata")
-                            }
-                        } else {
-                            // FALLBACK: If we can't create a badge, add frequency info to the reading text
-                            if (frequencyEntity != null && frequencyEntity.frequency > 0) {
-                                val frequencyRank = frequencyEntity.frequency
-
-                                // Choose color based on frequency
-                                val colorResId = when {
-                                    frequencyRank <= 100 -> R.color.badge_common
-                                    frequencyRank <= 1000 -> R.color.badge_uncommon
-                                    else -> R.color.badge_rare
-                                }
-
-                                val color = ContextCompat.getColor(itemView.context, colorResId)
-
-                                // If reading is visible, append frequency to it
-                                if (readingTextView.visibility == View.VISIBLE) {
-                                    val currentText = readingTextView.text.toString()
-                                    readingTextView.text = "$currentText (#$frequencyRank)"
-
-                                    // Set part of text color for frequency
-                                    try {
-                                        val spannable = android.text.SpannableString(readingTextView.text)
-                                        spannable.setSpan(
-                                            android.text.style.ForegroundColorSpan(color),
-                                            currentText.length,
-                                            readingTextView.text.length,
-                                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                        )
-                                        readingTextView.text = spannable
-                                    } catch (e: Exception) {
-                                        Log.e("DictionaryAdapter", "Error applying color span to reading text", e)
-                                    }
-                                }
-                                // If part of speech is visible, append frequency to it
-                                else if (partOfSpeechTextView.visibility == View.VISIBLE) {
-                                    val currentText = partOfSpeechTextView.text.toString()
-                                    partOfSpeechTextView.text = "$currentText (#$frequencyRank)"
-
-                                    // Set part of text color for frequency
-                                    try {
-                                        val spannable = android.text.SpannableString(partOfSpeechTextView.text)
-                                        spannable.setSpan(
-                                            android.text.style.ForegroundColorSpan(color),
-                                            currentText.length,
-                                            partOfSpeechTextView.text.length,
-                                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                        )
-                                        partOfSpeechTextView.text = spannable
-                                    } catch (e: Exception) {
-                                        Log.e("DictionaryAdapter", "Error applying color span to part of speech text", e)
-                                    }
-                                }
-                                // Last resort: append to term text
-                                else if (termTextView.visibility == View.VISIBLE) {
-                                    val currentText = termTextView.text.toString()
-                                    termTextView.text = "$currentText (#$frequencyRank)"
-
-                                    // Set part of text color for frequency
-                                    try {
-                                        val spannable = android.text.SpannableString(termTextView.text)
-                                        spannable.setSpan(
-                                            android.text.style.ForegroundColorSpan(color),
-                                            currentText.length,
-                                            termTextView.text.length,
-                                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                        )
-                                        termTextView.text = spannable
-                                    } catch (e: Exception) {
-                                        Log.e("DictionaryAdapter", "Error applying color span to term text", e)
-                                    }
-                                }
-
-                                Log.d("DictionaryAdapter", "Used fallback method to display frequency #$frequencyRank")
-                            }
-
-                            Log.e("DictionaryAdapter", "Could not create or find all required badge views")
+                    } catch (e: Exception) {
+                        Log.e("DictionaryAdapter", "Error retrieving frequency data: ${e.message}", e)
+                        withContext(Dispatchers.Main) {
+                            // Hide the shield on error
+                            FrequencyShieldHelper.hideFrequencyShield(frequencyShieldContainer)
                         }
                     }
-                } catch (e: Exception) {
-                    // Log error but don't crash if badge view is missing or can't be configured
-                    Log.e("DictionaryAdapter", "Error setting frequency badge", e)
                 }
+            } else {
+                // If we're missing any required views, hide the legacy frequency view
+                frequencyTextView.visibility = View.GONE
             }
 
             // Display definition or show placeholder if empty
@@ -678,87 +449,8 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             cardView.setCardBackgroundColor(getThemeSurfaceColor())
             exportToAnkiButton.setImageTintList(null)
 
-            // Reset text in reading view (in case we added frequency as fallback)
-            if (readingTextView.visibility == View.VISIBLE) {
-                // Try to detect if we added frequency info
-                val text = readingTextView.text.toString()
-                if (text.contains(" (#")) {
-                    val originalText = text.substringBefore(" (#")
-                    readingTextView.text = originalText
-                }
-            }
-
-            // Reset text in part of speech view (in case we added frequency as fallback)
-            if (partOfSpeechTextView.visibility == View.VISIBLE) {
-                val text = partOfSpeechTextView.text.toString()
-                if (text.contains(" (#")) {
-                    val originalText = text.substringBefore(" (#")
-                    partOfSpeechTextView.text = originalText
-                }
-            }
-
-            // Find any badge CardView in the item (whether from layout or dynamically created)
-            try {
-                // First try by tag - our custom badge has a tag
-                val customBadge = findViewWithTagRecursive(itemView, "custom_dictionary_badge")
-                if (customBadge != null && customBadge is View) {
-                    customBadge.visibility = View.GONE
-                    Log.d("DictionaryAdapter", "Reset custom badge visibility using tag")
-                    return
-                }
-
-                // Next try by ID - our custom badge has ID 100001
-                val badgeById = findViewWithId(itemView, 100001)
-                if (badgeById != null) {
-                    badgeById.visibility = View.GONE
-                    Log.d("DictionaryAdapter", "Reset custom badge visibility using ID")
-                    return
-                }
-            } catch (e: Exception) {
-                Log.e("DictionaryAdapter", "Error resetting badge visibility", e)
-            }
-        }
-
-        /**
-         * Utility method to find a view with a specific tag in the view hierarchy
-         */
-        private fun findViewWithTagRecursive(root: View, tag: Any): View? {
-            if (root.tag == tag) {
-                return root
-            }
-
-            if (root is ViewGroup) {
-                for (i in 0 until root.childCount) {
-                    val child = root.getChildAt(i)
-                    val result = findViewWithTagRecursive(child, tag)
-                    if (result != null) {
-                        return result
-                    }
-                }
-            }
-
-            return null
-        }
-
-        /**
-         * Utility method to find a view with a specific ID in the view hierarchy
-         */
-        private fun findViewWithId(root: View, id: Int): View? {
-            if (root.id == id) {
-                return root
-            }
-
-            if (root is ViewGroup) {
-                for (i in 0 until root.childCount) {
-                    val child = root.getChildAt(i)
-                    val result = findViewWithId(child, id)
-                    if (result != null) {
-                        return result
-                    }
-                }
-            }
-
-            return null
+            // Reset frequency shield if available
+            frequencyShieldContainer?.let { FrequencyShieldHelper.hideFrequencyShield(it) }
         }
 
         /**

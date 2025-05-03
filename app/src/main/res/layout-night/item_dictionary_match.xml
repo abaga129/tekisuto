@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:padding="12dp">
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/term_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -26,7 +26,7 @@
             app:layout_constraintTop_toTopOf="parent"
             tools:text="contestaba" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/reading_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -38,6 +38,17 @@
             app:layout_constraintStart_toEndOf="@+id/term_text"
             app:layout_constraintTop_toTopOf="@+id/term_text"
             tools:text="(reading)" />
+
+        <!-- Frequency Shield - replaces frequency_text -->
+        <include
+            android:id="@+id/frequency_shield"
+            layout="@layout/dictionary_frequency_shield"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            app:layout_constraintBottom_toBottomOf="@+id/term_text"
+            app:layout_constraintStart_toEndOf="@+id/reading_text"
+            app:layout_constraintTop_toTopOf="@+id/term_text" />
 
         <ImageButton
             android:id="@+id/play_audio_button"
@@ -62,7 +73,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@+id/term_text" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/part_of_speech_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -78,15 +89,16 @@
             app:layout_constraintTop_toBottomOf="@+id/term_text"
             tools:text="verb" />
             
-        <TextView
+        <!-- Keeping old frequency_text for backward compatibility, but will be GONE -->
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/frequency_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:layout_marginTop="4dp"
+            android:layout_marginStart="8dp"
             android:textSize="12sp"
-            android:textColor="@android:color/white"
-            android:background="@color/frequency_color"
+            android:textColor="@color/part_of_speech_color"
+            android:background="@color/light_gray"
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
             android:paddingTop="2dp"
@@ -94,10 +106,9 @@
             android:visibility="gone"
             app:layout_constraintStart_toEndOf="@+id/part_of_speech_text"
             app:layout_constraintTop_toBottomOf="@+id/term_text"
-            tools:text="Freq: #123" 
-            tools:visibility="visible" />
+            tools:text="Freq: #123" />
 
-        <TextView
+        <androidx.emoji2.widget.EmojiTextView
             android:id="@+id/definition_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -106,9 +117,13 @@
             android:textColor="#FFFFFF"
             android:background="@drawable/definition_background"
             android:padding="8dp"
+            android:textIsSelectable="true"
+            android:autoLink="web"
+            android:linksClickable="true"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/part_of_speech_text"
+            app:layout_goneMarginTop="4dp"
             tools:text="The definition of the word goes here with additional explanation if needed." />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

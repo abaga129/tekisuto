@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dictionary Frequency Display -->
+    <string name="frequency_badge">Freq: #%1$d</string>
+    <string name="dictionary_stats_with_frequency">Dictionary contains %1$d entries (%2$d with frequency data)</string>
+    
+    <!-- Frequency Shield Display -->
+    <string name="frequency_shield">%1$s\n#%2$d</string>
+    <string name="frequency_shield_common">#%1$d</string>
+    <string name="frequency_shield_uncommon">#%1$d</string>
+    <string name="frequency_shield_rare">#%1$d</string>
+</resources>

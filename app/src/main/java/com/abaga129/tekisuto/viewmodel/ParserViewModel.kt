@@ -28,10 +28,75 @@ import org.json.JSONException
  */
 class ParserViewModel private constructor() {
 
+    /**
+     * Loads frequency data from a term_meta_bank file
+     * This parses files in the format: [["term","freq",12345], ...] or [["term","freq",{"value":30,"displayValue":"30㋕"}], ...]
+     */
+    private fun loadFrequencyData(metaBankFile: File, frequencyMap: MutableMap<String, Int>) {
+        try {
+            // Read the file content
+            val content = metaBankFile.readText()
+            
+            // Parse the JSON array
+            val jsonArray = org.json.JSONArray(content)
+            
+            // Process each entry
+            for (i in 0 until jsonArray.length()) {
+                try {
+                    val entry = jsonArray.getJSONArray(i)
+                    
+                    // Check if this is a frequency entry
+                    if (entry.length() >= 3 && entry.getString(1) == "freq") {
+                        val term = entry.getString(0)
+                        
+                        // Handle both direct integer and JSON object frequency formats
+                        val freqData = entry.get(2)
+                        val frequency = when {
+                            freqData is Int -> freqData
+                            freqData.toString().toIntOrNull() != null -> freqData.toString().toInt()
+                            else -> {
+                                try {
+                                    // Try to parse as JSON object
+                                    val jsonObj = entry.getJSONObject(2)
+                                    if (jsonObj.has("value")) {
+                                        jsonObj.getInt("value")
+                                    } else {
+                                        Log.w(TAG, "Frequency JSON object doesn't have 'value' property: $jsonObj")
+                                        continue
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Unexpected frequency data type: ${e.message}")
+                                    continue
+                                }
+                            }
+                        }
+                        
+                        // Store in the map
+                        frequencyMap[term] = frequency
+                        
+                        // Log a few examples for debugging
+                        if (i < 5 || i % 10000 == 0) {
+                            Log.d(TAG, "Parsed frequency $frequency for term: $term")
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Log error but continue processing other entries
+                    if (i < 10) {  // Only log errors for the first few entries to avoid log spam
+                        Log.e(TAG, "Error parsing frequency entry at index $i: ${e.message}")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "Processed ${frequencyMap.size} frequency entries from ${metaBankFile.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading frequency data: ${e.message}")
+        }
+    }
+
     companion object {
         private const val TAG = "ParserViewModel"
-        private const val BATCH_SIZE = 100 // Process 100 entries at a time to save memory
-        private const val STREAM_CHUNK_SIZE = 200 // Number of entries to read from file at once
+        private const val BATCH_SIZE = 500 // Process 500 entries at a time (increased from 100)
+        private const val STREAM_CHUNK_SIZE = 1000 // Number of entries to read from file at once (increased from 200)
 
         // Singleton instance
         @Volatile
@@ -137,12 +202,21 @@ class ParserViewModel private constructor() {
                 return Pair(false, -1L)
             }
             
-            // Find all term bank files and parse them
+            // Find all term bank files and term meta bank files
             val termBankFiles = YomitanDictionaryExtractor.findTermBankFiles(extractedDir)
-            if (termBankFiles.isEmpty()) {
-                Log.e(TAG, "No term bank files found")
+            val termMetaBankFiles = YomitanDictionaryExtractor.findTermMetaBankFiles(extractedDir)
+            
+            // Check if this is a frequency-only dictionary (no term banks, only meta banks)
+            var isFrequencyOnlyDict = termBankFiles.isEmpty() && termMetaBankFiles.isNotEmpty()
+            
+            if (termBankFiles.isEmpty() && termMetaBankFiles.isEmpty()) {
+                Log.e(TAG, "Neither term bank files nor term meta bank files found")
                 YomitanDictionaryExtractor.cleanup(extractedDir)
                 return Pair(false, -1L)
+            }
+            
+            if (isFrequencyOnlyDict) {
+                Log.d(TAG, "Detected frequency-only dictionary with ${termMetaBankFiles.size} meta bank files")
             }
             
             // Setup Moshi for JSON parsing
@@ -155,117 +229,190 @@ class ParserViewModel private constructor() {
             var totalEntryCount = 0
             var successfulEntryCount = 0
             
-            // Process each term bank file
-            for ((index, termBankFile) in termBankFiles.withIndex()) {
-                val progress = ((index.toFloat() / termBankFiles.size) * 100).toInt()
-                _importProgress.postValue(progress)
-                
-                try {
-                    // Use JsonStreamParser to process the file incrementally
-                    var fileEntryCount = 0
-                    
-                    fileEntryCount = JsonStreamParser.processJsonArrayFile(
-                        file = termBankFile,
-                        chunkSize = STREAM_CHUNK_SIZE
-                    ) { chunk ->
-                        // Process this chunk of entries
-                        // Convert JSON entries to DictionaryEntryEntity objects
-                        val dictionaryEntries = chunk.mapNotNull { entryArray ->
-                            try {
-                                YomitanDictionaryEntry.fromJsonArray(entryArray, dictionaryId)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error converting entry: ${e.message}")
-                                null
-                            }
-                        }
-                        
-                        // Process in smaller batches for DB operations
-                        val batches = dictionaryEntries.chunked(BATCH_SIZE)
-                        
-                        for (batch in batches) {
-                            // Import batch to database
-                            if (batch.isNotEmpty()) {
-                                val importedCount = dictionaryRepository.importDictionaryEntries(batch)
-                                successfulEntryCount += importedCount
-                                
-                                // Log progress periodically
-                                if (successfulEntryCount / 1000 > entryCount / 1000) {
-                                    Log.d(TAG, "Imported $successfulEntryCount entries so far")
-                                    entryCount = successfulEntryCount
-                                    
-                                    // Update progress during import
-                                    val intraFileProgress = ((index.toFloat() + 0.5f) / termBankFiles.size) * 100
-                                    _importProgress.postValue(intraFileProgress.toInt())
-                                }
-                            }
-                        }
-                    }
-                    
-                    totalEntryCount += fileEntryCount
-                    Log.d(TAG, "Processed term bank file: ${termBankFile.name}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error processing term bank file ${termBankFile.name}: ${e.message}")
-                }
-            }
-            
-            // Process term meta banks for frequency information
-            val termMetaBankFiles = YomitanDictionaryExtractor.findTermMetaBankFiles(extractedDir)
-            
-            if (termMetaBankFiles.isNotEmpty()) {
-                Log.d(TAG, "Found ${termMetaBankFiles.size} term meta bank files")
-                
-                var frequencyCount = 0
-                
-                // Process each term meta bank file
-                for ((index, metaBankFile) in termMetaBankFiles.withIndex()) {
-                    val progress = 80 + ((index.toFloat() / termMetaBankFiles.size) * 20).toInt()
+            // Process term bank files (skip if this is a frequency-only dictionary)
+            if (!isFrequencyOnlyDict) {
+                // Process each term bank file
+                for ((index, termBankFile) in termBankFiles.withIndex()) {
+                    val progress = ((index.toFloat() / termBankFiles.size) * 100).toInt()
                     _importProgress.postValue(progress)
                     
                     try {
                         // Use JsonStreamParser to process the file incrementally
-                        JsonStreamParser.processJsonArrayFile(
-                            file = metaBankFile,
+                        var fileEntryCount = 0
+                        
+                        fileEntryCount = JsonStreamParser.processJsonArrayFile(
+                            file = termBankFile,
                             chunkSize = STREAM_CHUNK_SIZE
                         ) { chunk ->
-                            // Convert JSON entries to WordFrequencyEntity objects
-                            val frequencyEntries = chunk.mapNotNull { entryArray ->
+                            // Process this chunk of entries
+                            // Convert JSON entries to DictionaryEntryEntity objects
+                            val dictionaryEntries = chunk.mapNotNull { entryArray ->
                                 try {
-                                    YomitanTermMetaEntry.fromJsonArray(entryArray, dictionaryId)
+                                    YomitanDictionaryEntry.fromJsonArray(entryArray, dictionaryId)
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "Error converting frequency entry: ${e.message}")
+                                    Log.e(TAG, "Error converting entry: ${e.message}")
                                     null
                                 }
                             }
                             
                             // Process in smaller batches for DB operations
-                            val batches = frequencyEntries.chunked(BATCH_SIZE)
+                            val batches = dictionaryEntries.chunked(BATCH_SIZE)
                             
                             for (batch in batches) {
                                 // Import batch to database
                                 if (batch.isNotEmpty()) {
-                                    val importedCount = dictionaryRepository.importWordFrequencies(batch)
-                                    frequencyCount += importedCount
+                                    val importedCount = dictionaryRepository.importDictionaryEntries(batch)
+                                    successfulEntryCount += importedCount
+                                    
+                                    // Log progress periodically
+                                    if (successfulEntryCount / 1000 > entryCount / 1000) {
+                                        Log.d(TAG, "Imported $successfulEntryCount entries so far")
+                                        entryCount = successfulEntryCount
+                                        
+                                        // Update progress during import
+                                        val intraFileProgress = ((index.toFloat() + 0.5f) / termBankFiles.size) * 100
+                                        _importProgress.postValue(intraFileProgress.toInt())
+                                    }
                                 }
                             }
                         }
                         
-                        Log.d(TAG, "Processed term meta bank file: ${metaBankFile.name}")
+                        totalEntryCount += fileEntryCount
+                        Log.d(TAG, "Processed term bank file: ${termBankFile.name}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error processing term bank file ${termBankFile.name}: ${e.message}")
+                    }
+                }
+            } else {
+                Log.d(TAG, "Skipping term bank processing for frequency-only dictionary")
+                _importProgress.postValue(50) // Set progress to 50% before processing frequency data
+            }
+            
+            // Initialize frequency count
+            var frequencyCount = 0
+            var parseFailures = 0
+            
+            // Process term meta banks for frequency information
+            if (termMetaBankFiles.isNotEmpty()) {
+                Log.d(TAG, "Found ${termMetaBankFiles.size} term meta bank files")
+                
+                // Set progress start point based on whether we processed term banks
+                val progressStart = if (isFrequencyOnlyDict) 50 else 80
+                
+                // Process each term meta bank file
+                for ((index, metaBankFile) in termMetaBankFiles.withIndex()) {
+                    val progress = progressStart + ((index.toFloat() / termMetaBankFiles.size) * (100 - progressStart)).toInt()
+                    _importProgress.postValue(progress)
+                    
+                    try {
+                        // First try to process using the standard approach
+                        var processedEntries = false
+                        var frequencyEntriesFromStandardMethod = 0
+                        
+                        try {
+                            // Use JsonStreamParser to process the file incrementally
+                            JsonStreamParser.processJsonArrayFile(
+                                file = metaBankFile,
+                                chunkSize = STREAM_CHUNK_SIZE
+                            ) { chunk ->
+                                // Convert JSON entries to WordFrequencyEntity objects
+                                val frequencyEntries = chunk.mapNotNull { entryArray ->
+                                    try {
+                                        YomitanTermMetaEntry.fromJsonArray(entryArray, dictionaryId)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error converting frequency entry: ${e.message}")
+                                        null
+                                    }
+                                }
+                                
+                                // Process in smaller batches for DB operations
+                                val batches = frequencyEntries.chunked(BATCH_SIZE)
+                                
+                                for (batch in batches) {
+                                    // Import batch to database
+                                    if (batch.isNotEmpty()) {
+                                        val importedCount = dictionaryRepository.importWordFrequencies(batch)
+                                        frequencyCount += importedCount
+                                        frequencyEntriesFromStandardMethod += importedCount
+                                        processedEntries = true
+                                    }
+                                }
+                            }
+                            
+                            Log.d(TAG, "Processed ${frequencyEntriesFromStandardMethod} frequency entries from ${metaBankFile.name} using standard method")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error processing term meta file using standard method: ${e.message}")
+                            parseFailures++
+                        }
+                        
+                        // If standard processing failed or no entries were processed, try alternative method
+                        if (!processedEntries) {
+                            Log.d(TAG, "Standard processing failed or found no entries, trying alternative method for ${metaBankFile.name}")
+                            
+                            // Use the fallback method for the specific frequency format [["term","freq",12345], ...]
+                            val frequencyMap = mutableMapOf<String, Int>()
+                            loadFrequencyData(metaBankFile, frequencyMap)
+                            
+                            if (frequencyMap.isNotEmpty()) {
+                                // Convert the map to WordFrequencyEntity objects
+                                val frequencyEntities = frequencyMap.map { (term, freq) ->
+                                    WordFrequencyEntity(
+                                        dictionaryId = dictionaryId,
+                                        word = term,
+                                        frequency = freq
+                                    )
+                                }
+                                
+                                // Process in batches
+                                val batches = frequencyEntities.chunked(BATCH_SIZE)
+                                for (batch in batches) {
+                                    if (batch.isNotEmpty()) {
+                                        val importedCount = dictionaryRepository.importWordFrequencies(batch)
+                                        frequencyCount += importedCount
+                                    }
+                                }
+                                
+                                Log.d(TAG, "Processed ${frequencyMap.size} frequency entries from ${metaBankFile.name} using alternative method")
+                            } else {
+                                Log.e(TAG, "No frequency data found in ${metaBankFile.name} using alternative method")
+                            }
+                        }
+                        
+                        Log.d(TAG, "Completed processing term meta bank file: ${metaBankFile.name}")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error processing term meta bank file ${metaBankFile.name}: ${e.message}")
                     }
                 }
                 
-                Log.d(TAG, "Imported $frequencyCount frequency entries")
+                if (parseFailures > 0) {
+                    Log.w(TAG, "Encountered $parseFailures parsing failures during frequency data processing")
+                }
+                
+                Log.d(TAG, "Imported $frequencyCount frequency entries in total")
             } else {
                 Log.d(TAG, "No term meta bank files found for frequency information")
             }
+
             
             // Update the entry count in dictionary metadata - force a proper update
+            // For frequency-only dictionaries, set entry count to frequency count to ensure they appear in the UI
+            isFrequencyOnlyDict = successfulEntryCount == 0 && frequencyCount > 0
+            val finalEntryCount = if (isFrequencyOnlyDict) frequencyCount else successfulEntryCount
+            
             val updatedMetadata = metadataEntity.copy(
                 id = dictionaryId,
-                entryCount = successfulEntryCount
+                entryCount = finalEntryCount,
+                description = if (isFrequencyOnlyDict) {
+                    "${metadataEntity.description} [Frequency data only: ${frequencyCount} entries]"
+                } else {
+                    metadataEntity.description
+                }
             )
             dictionaryRepository.saveDictionaryMetadata(updatedMetadata)
+            
+            if (isFrequencyOnlyDict) {
+                Log.d(TAG, "Saved frequency-only dictionary with ${frequencyCount} frequency entries")
+            }
             
             // Verify the entry count after update
             val verifyEntryCount = dictionaryRepository.getDictionaryEntryCount(dictionaryId)

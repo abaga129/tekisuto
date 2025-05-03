@@ -151,6 +151,18 @@ class DictionaryBrowserFragment : Fragment(), DictionaryMatchAdapter.OnAnkiExpor
             recyclerView.isVisible = entries.isNotEmpty()
         }
         
+        // Observe frequency data
+        viewModel.frequencyData.observe(viewLifecycleOwner) { frequencyData ->
+            // When frequency data changes, force adapter to update
+            val currentEntries = viewModel.entries.value
+            if (currentEntries != null && currentEntries.isNotEmpty()) {
+                // Note: We're not actually using this in the adapter directly,
+                // as the adapter queries the repository directly for frequency data
+                // This is more for debugging and statistics purposes
+                Log.d("DictionaryBrowserFragment", "Received frequency data for ${frequencyData.size} entries")
+            }
+        }
+        
         // Observe loading state
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             loadingProgressBar.isVisible = isLoading
@@ -169,11 +181,24 @@ class DictionaryBrowserFragment : Fragment(), DictionaryMatchAdapter.OnAnkiExpor
             try {
                 // Try to use EmojiCompat if available
                 if (dictionaryStatsTextView is EmojiTextView) {
-                    // EmojiTextView will handle emoji processing automatically
-                    dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+                    // Check if we have frequency count data
+                    val freqCount = viewModel.frequencyCount.value ?: 0
+                    if (freqCount > 0) {
+                        // EmojiTextView will handle emoji processing automatically
+                        dictionaryStatsTextView.text = getString(R.string.dictionary_stats_with_frequency, count, freqCount)
+                    } else {
+                        // Use regular stats display if no frequency data
+                        dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+                    }
                 } else {
                     // For TextView, manually process with EmojiCompat
-                    val statsText = getString(R.string.dictionary_stats, count)
+                    val freqCount = viewModel.frequencyCount.value ?: 0
+                    val statsText = if (freqCount > 0) {
+                        getString(R.string.dictionary_stats_with_frequency, count, freqCount)
+                    } else {
+                        getString(R.string.dictionary_stats, count)
+                    }
+                    
                     try {
                         dictionaryStatsTextView.text = EmojiCompat.get().process(statsText)
                     } catch (e: Exception) {
@@ -185,6 +210,41 @@ class DictionaryBrowserFragment : Fragment(), DictionaryMatchAdapter.OnAnkiExpor
                 Log.e("DictionaryBrowserFragment", "Error setting stats text with emoji: ${e.message}")
                 // Fallback to standard text setting
                 dictionaryStatsTextView.text = getString(R.string.dictionary_stats, count)
+            }
+        }
+        
+        // Observe frequency count for updated stats display
+        viewModel.frequencyCount.observe(viewLifecycleOwner) { freqCount ->
+            try {
+                // Only update if we have entry count data too
+                val entryCount = viewModel.entryCount.value ?: 0
+                
+                // Try to use EmojiCompat if available
+                if (dictionaryStatsTextView is EmojiTextView) {
+                    // EmojiTextView will handle emoji processing automatically
+                    if (freqCount > 0) {
+                        dictionaryStatsTextView.text = getString(R.string.dictionary_stats_with_frequency, entryCount, freqCount)
+                    } else {
+                        dictionaryStatsTextView.text = getString(R.string.dictionary_stats, entryCount)
+                    }
+                } else {
+                    // For TextView, manually process with EmojiCompat
+                    val statsText = if (freqCount > 0) {
+                        getString(R.string.dictionary_stats_with_frequency, entryCount, freqCount)
+                    } else {
+                        getString(R.string.dictionary_stats, entryCount)
+                    }
+                    
+                    try {
+                        dictionaryStatsTextView.text = EmojiCompat.get().process(statsText)
+                    } catch (e: Exception) {
+                        Log.e("DictionaryBrowserFragment", "Error processing emoji in stats text: ${e.message}")
+                        dictionaryStatsTextView.text = statsText
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("DictionaryBrowserFragment", "Error setting stats text with emoji: ${e.message}")
+                // No need to do anything further as the entry count observer will provide fallback
             }
         }
     }

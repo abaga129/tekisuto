@@ -281,8 +281,8 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             dictionarySearchManager.setScreenshotPath(screenshotPath)
         }
         
-        // Explicitly trigger a dictionary search for the entire OCR text to show initial matches
-        viewModel.findDictionaryMatches(ocrText)
+        // No longer performing automatic dictionary search on startup
+        // Users can tap on words or use the search field to look up specific terms
     }
     
     /**
@@ -379,13 +379,34 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
             // Force a layout refresh
             dictionaryMatchesRecyclerView.adapter?.notifyDataSetChanged()
             
+            // Update the search hint to indicate all matches are shown
+            if (matches.isNotEmpty() && matches.size > 1) {
+                val searchTerm = dictionarySearchEditText.text.toString().trim()
+                if (searchTerm.isNotEmpty()) {
+                    selectionHintTextView.text = getString(R.string.showing_all_matches, matches.size, searchTerm)
+                    selectionHintTextView.visibility = View.VISIBLE
+                }
+            } else {
+                selectionHintTextView.text = getString(R.string.tap_word_hint)
+            }
+            
             // Ensure appropriate minimum height based on matches
             val layoutParams = dictionaryMatchesRecyclerView.layoutParams
             if (matches.isNotEmpty()) {
-                // Set a minimum height proportional to the number of matches (up to a limit)
-                val minHeightDp = Math.min(matches.size * 120, 400)
-                val minHeightPx = (minHeightDp * resources.displayMetrics.density).toInt()
-                layoutParams.height = minHeightPx
+                // Calculate height based on number of matches to show more items
+                // Base height calculation: more entries = more height, with a maximum
+                val matchCount = matches.size
+                val heightPerItem = 150 // dp approximation for each dictionary entry
+                val maxHeightDp = 500 // maximum height in dp
+                val minHeightDp = 160 // minimum height in dp
+                
+                // Calculate the desired height in dp, then convert to pixels
+                val desiredHeightDp = Math.min(Math.max(minHeightDp, matchCount * heightPerItem / 2), maxHeightDp)
+                val desiredHeightPx = (desiredHeightDp * resources.displayMetrics.density).toInt()
+                
+                // Set the calculated height
+                layoutParams.height = desiredHeightPx
+                Log.d(TAG, "Setting RecyclerView height to ${desiredHeightPx}px for ${matchCount} matches")
             } else {
                 // Default minimum height when no matches
                 layoutParams.height = (80 * resources.displayMetrics.density).toInt()

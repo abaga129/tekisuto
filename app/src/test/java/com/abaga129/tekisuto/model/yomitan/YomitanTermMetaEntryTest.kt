@@ -171,4 +171,129 @@ class YomitanTermMetaEntryTest {
         // Should return null since term is missing
         assertNull(frequencyEntity)
     }
+    
+    // Tests for the new frequency format
+    
+    @Test
+    fun testFrequencyFormatWithDirectValue() {
+        // Format: ["term", "freq", numericValue]
+        val jsonArray = listOf(
+            "水",             // term [0]
+            "freq",          // type [1]
+            123              // frequency value [2]
+        )
+        
+        val dictionaryId = 1L
+        val frequencyEntity = YomitanTermMetaEntry.fromJsonArray(jsonArray, dictionaryId)
+        
+        assertNotNull(frequencyEntity)
+        assertEquals("水", frequencyEntity?.word)
+        assertEquals(123, frequencyEntity?.frequency)
+        assertEquals(dictionaryId, frequencyEntity?.dictionaryId)
+    }
+    
+    @Test
+    fun testFrequencyFormatWithStringValue() {
+        // Format: ["term", "freq", "456"]
+        val jsonArray = listOf(
+            "空",             // term [0]
+            "freq",          // type [1]
+            "456"            // frequency value as string [2]
+        )
+        
+        val dictionaryId = 1L
+        val frequencyEntity = YomitanTermMetaEntry.fromJsonArray(jsonArray, dictionaryId)
+        
+        assertNotNull(frequencyEntity)
+        assertEquals("空", frequencyEntity?.word)
+        assertEquals(456, frequencyEntity?.frequency)
+        assertEquals(dictionaryId, frequencyEntity?.dictionaryId)
+    }
+    
+    @Test
+    fun testFrequencyFormatWithObjectValue() {
+        // Format: ["term", "freq", {"value": 789, "displayValue": "789㋕"}]
+        val jsonArray = listOf(
+            "山",             // term [0]
+            "freq",          // type [1]
+            mapOf(            // frequency as an object
+                "value" to 789,
+                "displayValue" to "789㋕"
+            )
+        )
+        
+        val dictionaryId = 1L
+        val frequencyEntity = YomitanTermMetaEntry.fromJsonArray(jsonArray, dictionaryId)
+        
+        assertNotNull(frequencyEntity)
+        assertEquals("山", frequencyEntity?.word)
+        assertEquals(789, frequencyEntity?.frequency)
+        assertEquals(dictionaryId, frequencyEntity?.dictionaryId)
+    }
+    
+    @Test
+    fun testFrequencyFormatWithObjectStringValue() {
+        // Format: ["term", "freq", {"value": "1024", "displayValue": "1024㋕"}]
+        val jsonArray = listOf(
+            "川",             // term [0]
+            "freq",          // type [1]
+            mapOf(            // frequency as an object with string value
+                "value" to "1024",
+                "displayValue" to "1024㋕"
+            )
+        )
+        
+        val dictionaryId = 1L
+        val frequencyEntity = YomitanTermMetaEntry.fromJsonArray(jsonArray, dictionaryId)
+        
+        assertNotNull(frequencyEntity)
+        assertEquals("川", frequencyEntity?.word)
+        assertEquals(1024, frequencyEntity?.frequency)
+        assertEquals(dictionaryId, frequencyEntity?.dictionaryId)
+    }
+    
+    @Test
+    fun testParsingFrequencyFormatFromActualJson() {
+        val json = """
+            [
+                ["山", "freq", 100],
+                ["川", "freq", {"value": 200, "displayValue": "200㋕"}],
+                ["空", "freq", "300"],
+                ["火", "other", 400],
+                ["水", "freq", {"otherProperty": 500}]
+            ]
+        """.trimIndent()
+        
+        // Parse the JSON to get a List<List<Any?>>
+        val moshi = Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
+            
+        val listOfAnyType = Types.newParameterizedType(List::class.java, Any::class.java)
+        val listOfListOfAnyType = Types.newParameterizedType(List::class.java, listOfAnyType)
+        val jsonAdapter: JsonAdapter<List<List<Any?>>> = moshi.adapter(listOfListOfAnyType)
+        
+        val entries = jsonAdapter.fromJson(json)
+        
+        // Convert the parsed JSON to WordFrequencyEntity objects
+        val dictionaryId = 1L
+        val frequencyEntities = entries?.mapNotNull { entryArray ->
+            YomitanTermMetaEntry.fromJsonArray(entryArray, dictionaryId)
+        }
+        
+        // Verify the results
+        assertEquals(3, frequencyEntities?.size)  // Only 3 valid frequency entries (the last two should be skipped)
+        
+        val firstEntity = frequencyEntities?.get(0)
+        assertEquals("山", firstEntity?.word)
+        assertEquals(100, firstEntity?.frequency)
+        
+        val secondEntity = frequencyEntities?.get(1)
+        assertEquals("川", secondEntity?.word)
+        assertEquals(200, secondEntity?.frequency)
+        
+        val thirdEntity = frequencyEntities?.get(2)
+        assertEquals("空", thirdEntity?.word)
+        assertEquals(300, thirdEntity?.frequency)
+    }
 }

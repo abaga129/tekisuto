@@ -176,6 +176,7 @@
     <string name="move_down">Move Down</string>
     <string name="dictionary_priority_format">Priority: %1$d</string>
     <string name="dictionary_entry_count">Entries: %1$d</string>
+    <string name="dictionary_frequency_count">Frequency Entries: %1$d</string>
     <string name="dictionary_author">Author: %1$s</string>
     <string name="dictionary_languages">Languages: %1$s → %2$s</string>
     <string name="dictionary_priority_updated">Dictionary priority updated</string>
@@ -190,6 +191,7 @@
     <string name="translating">Translating text…</string>
     <string name="translation_error">Error translating text: %1$s</string>
     <string name="tap_word_hint">Tap any word to look it up in the dictionary</string>
+    <string name="showing_all_matches">Showing all %1$d matches for \"%2$s\"</string>
     <string name="word_translated">%1$s → %2$s</string>
     
     <string-array name="translate_language_entries">

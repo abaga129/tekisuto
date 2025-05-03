@@ -75,21 +75,39 @@ class DictionaryAdapter(
                 R.string.dictionary_author, 
                 dictionary.author.ifEmpty { "Unknown" }
             )
-            val entryCountText = itemView.context.getString(
-                R.string.dictionary_entry_count,
-                dictionary.entryCount
-            )
+            
+            // Check if this is a frequency-only dictionary
+            val frequencyOnlyDict = dictionary.description.contains("[Frequency data only:")
+            val entryCountText = if (frequencyOnlyDict) {
+                itemView.context.getString(
+                    R.string.dictionary_frequency_count,
+                    dictionary.entryCount
+                )
+            } else {
+                itemView.context.getString(
+                    R.string.dictionary_entry_count,
+                    dictionary.entryCount
+                )
+            }
             
             // Only include language info if both source and target are available
             val infoText = if (dictionary.sourceLanguage.isEmpty() || dictionary.targetLanguage.isEmpty()) {
-                "$authorText\n$entryCountText"
+                if (frequencyOnlyDict) {
+                    "$authorText\n$entryCountText\n(Frequency dictionary only)"
+                } else {
+                    "$authorText\n$entryCountText"
+                }
             } else {
                 val languagesText = itemView.context.getString(
                     R.string.dictionary_languages,
                     dictionary.sourceLanguage.uppercase(),
                     dictionary.targetLanguage.uppercase()
                 )
-                "$authorText\n$entryCountText\n$languagesText"
+                if (frequencyOnlyDict) {
+                    "$authorText\n$entryCountText\n$languagesText\n(Frequency dictionary only)"
+                } else {
+                    "$authorText\n$entryCountText\n$languagesText"
+                }
             }
             
             infoTextView.text = infoText

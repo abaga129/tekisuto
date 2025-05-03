@@ -10,4 +10,10 @@
     <color name="card_exported">#1A365C</color>
     <color name="exported_hint">#4CAF50</color>
     <color name="headerBackground">#1E2730</color>
+    
+    <!-- Badge colors for dark mode -->
+    <color name="badge_background">#3D5566</color>       <!-- Darker version for dark mode -->
+    <color name="badge_common">#388E3C</color>           <!-- Darker green for dark mode -->
+    <color name="badge_uncommon">#F57C00</color>         <!-- Darker orange for dark mode -->
+    <color name="badge_rare">#757575</color>             <!-- Darker gray for dark mode -->
 </resources>

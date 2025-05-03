@@ -194,6 +194,34 @@ class OCRResultViewModel : ViewModel() {
                 // Log the original text for debugging
                 Log.d(TAG, "OCR Text for dictionary search: $text")
                 
+                // If searching for a specific text (like a single word), do a direct search
+                if (selectedText != null && selectedText.isNotBlank()) {
+                    // Get active profile ID
+                    val activeProfileId = getActiveProfileId()
+                    
+                    // Direct search for the specific term with fastSearch=true for better performance
+                    val directSearchTime = System.currentTimeMillis()
+                    val searchResults = repository.searchDictionary("%${selectedText.trim()}%", activeProfileId, fastSearch = true)
+                    Log.d(TAG, "Direct search took ${System.currentTimeMillis() - directSearchTime}ms, found ${searchResults.size} matches")
+                    
+                    // Don't filter to unique terms - show all matches
+                    val sortedMatches = searchResults
+                        .sortedWith(compareBy<DictionaryEntryEntity> { 
+                            // Exact matches first
+                            !(it.term.equals(selectedText.trim(), ignoreCase = true)) 
+                        }.thenBy { 
+                            // Then sort by term length (shorter terms first)
+                            it.term.length 
+                        })
+                        .take(30) // Limit to 30 matches to avoid overwhelming the UI
+                    
+                    _dictionaryMatches.postValue(sortedMatches)
+                    Log.d(TAG, "Showing all ${sortedMatches.size} matches for term '${selectedText}'")
+                    _isSearching.postValue(false)
+                    return@launch
+                }
+                
+                // For bulk text analysis, use the original approach
                 // Get basic word list (much faster extraction)
                 val startTime = System.currentTimeMillis()
                 val rawWords = text.split(Regex("[\\s,.。、!?：:;；\n\r\t]+"))

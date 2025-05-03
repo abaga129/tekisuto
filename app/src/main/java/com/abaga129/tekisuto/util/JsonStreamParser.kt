@@ -19,8 +19,8 @@ import java.io.InputStreamReader
 class JsonStreamParser {
     companion object {
         private const val TAG = "JsonStreamParser"
-        private const val READ_BUFFER_SIZE = 8192 // 8KB buffer for reading
-        private const val CHUNK_FILE_SIZE = 1024 * 1024 // 1MB chunks for file reading
+        private const val READ_BUFFER_SIZE = 32768 // 32KB buffer for reading (increased from 8KB)
+        private const val CHUNK_FILE_SIZE = 4 * 1024 * 1024 // 4MB chunks for file reading (increased from 1MB)
         
         /**
          * Process a JSON array file incrementally, providing chunks of entries to the processor function
@@ -127,7 +127,7 @@ class JsonStreamParser {
                                                 entryList = mutableListOf()
                                                 
                                                 // Log progress periodically
-                                                if (totalEntries % 5000 == 0) {
+                                                if (totalEntries % 10000 == 0) {
                                                     Log.d(TAG, "Processed $totalEntries entries from ${file.name}")
                                                 }
                                             }
@@ -303,12 +303,12 @@ class JsonStreamParser {
                                                 entriesList = mutableListOf()
                                                 
                                                 // Force GC occasionally to free memory
-                                                if (totalEntries % 10000 == 0) {
+                                                if (totalEntries % 50000 == 0) {
                                                     System.gc()
                                                 }
                                                 
                                                 // Log progress
-                                                if (totalEntries % 5000 == 0) {
+                                                if (totalEntries % 10000 == 0) {
                                                     Log.d(TAG, "Processed $totalEntries entries from ${file.name}")
                                                 }
                                             }

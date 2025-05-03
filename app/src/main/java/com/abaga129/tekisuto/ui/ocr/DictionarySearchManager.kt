@@ -141,6 +141,12 @@ class DictionarySearchManager(
      * Search for a specific term in the dictionary
      */
     fun searchTerm(term: String?) {
+        // Store the search term in the EditText to make it visible to the user
+        if (!term.isNullOrBlank()) {
+            updateSearchField(term)
+        }
+        
+        // Perform the search
         viewModel.findDictionaryMatches(term)
     }
     
