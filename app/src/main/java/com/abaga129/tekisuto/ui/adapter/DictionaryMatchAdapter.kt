@@ -203,11 +203,21 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 
                 lifecycleScope.launch {
                     try {
-                        // Fetch frequency data for this term and dictionary
-                        val frequencyData = dictionaryRepository.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
+                        // Try to fetch frequency data for this term in the specific dictionary
+                        var frequencyData = dictionaryRepository.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
+                        var dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(entry.dictionaryId)
                         
-                        // Get dictionary metadata to display the name
-                        val dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(entry.dictionaryId)
+                        // If not found in specific dictionary, try to find in any dictionary
+                        if (frequencyData == null) {
+                            Log.d("DictionaryAdapter", "No frequency in dictionary ${entry.dictionaryId}, checking all dictionaries...")
+                            frequencyData = dictionaryRepository.getFrequencyForWord(entry.term)
+                            
+                            // If found in another dictionary, get that dictionary's metadata
+                            if (frequencyData != null) {
+                                dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(frequencyData.dictionaryId)
+                                Log.d("DictionaryAdapter", "Found frequency in dictionary ${frequencyData.dictionaryId}: #${frequencyData.frequency}")
+                            }
+                        }
                         
                         // Update UI on the main thread
                         withContext(Dispatchers.Main) {

@@ -29,11 +29,11 @@ private const val TAG = "DictionaryRepository"
  * Dictionary repository to handle database operations
  */
 class DictionaryRepository(context: Context) {
-    
+
     companion object {
         @Volatile
         private var INSTANCE: DictionaryRepository? = null
-        
+
         fun getInstance(context: Context): DictionaryRepository {
             return INSTANCE ?: synchronized(this) {
                 val instance = DictionaryRepository(context.applicationContext)
@@ -43,7 +43,7 @@ class DictionaryRepository(context: Context) {
         }
     }
     private val database: AppDatabase = AppDatabase.createDatabase(context)
-        
+
     init {
         // For debugging only
         Log.d("DictionaryRepository", "Database initialized with schema version ${database.openHelper.readableDatabase.version}")
@@ -74,7 +74,7 @@ class DictionaryRepository(context: Context) {
     private val exportedWordsDao = database.exportedWordsDao()
     private val profileDictionaryDao = database.profileDictionaryDao()
     private val wordFrequencyDao = database.wordFrequencyDao()
-    
+
     /**
      * Normalize Japanese characters for better matching
      * - Convert full-width to half-width where appropriate
@@ -82,12 +82,12 @@ class DictionaryRepository(context: Context) {
      */
     private fun normalizeJapaneseCharacters(input: String): String {
         var result = input
-        
+
         // Replace full-width alphabetic characters with half-width
         val fullWidthAlphabeticStart = 0xFF21 // Ａ
         val fullWidthAlphabeticEnd = 0xFF5A // ｚ
         val asciiOffset = 0xFF21 - 'A'.code
-        
+
         val sb = StringBuilder()
         for (c in result) {
             val code = c.code
@@ -98,7 +98,7 @@ class DictionaryRepository(context: Context) {
             }
         }
         result = sb.toString()
-        
+
         // Other specific normalizations
         val replacements = mapOf(
             '〜' to '～',
@@ -107,11 +107,11 @@ class DictionaryRepository(context: Context) {
             '，' to ',',
             '　' to ' '
         )
-        
+
         for ((fullWidth, halfWidth) in replacements) {
             result = result.replace(fullWidth, halfWidth)
         }
-        
+
         return result
     }
 
@@ -125,7 +125,7 @@ class DictionaryRepository(context: Context) {
                 // This is an update to an existing dictionary - use UPDATE query instead of REPLACE
                 val entryCountBefore = getDictionaryEntryCount(metadata.id)
                 Log.d(TAG, "Updating existing dictionary ${metadata.id} which has $entryCountBefore entries")
-                
+
                 // Use direct update query instead of insert with REPLACE strategy
                 val updateCount = dictionaryMetadataDao.updateMetadata(
                     id = metadata.id,
@@ -138,17 +138,17 @@ class DictionaryRepository(context: Context) {
                     priority = metadata.priority,
                     importDate = metadata.importDate.time
                 )
-                
+
                 Log.d(TAG, "Updated dictionary metadata with ID ${metadata.id}, rows affected: $updateCount")
-                
+
                 // Check if entry count is still correct after update
                 val entryCountAfter = getDictionaryEntryCount(metadata.id)
                 Log.d(TAG, "After update, dictionary ${metadata.id} has $entryCountAfter entries")
-                
+
                 if (entryCountAfter != entryCountBefore) {
                     Log.e(TAG, "WARNING: Dictionary entries changed from $entryCountBefore to $entryCountAfter during metadata update!")
                 }
-                
+
                 metadata.id
             } else {
                 // New dictionary, use normal insert
@@ -174,16 +174,16 @@ class DictionaryRepository(context: Context) {
                 val entryCount = getDictionaryEntryCount(id)
                 Log.d(TAG, "VERIFY: Before getAllDictionaries returns - Dictionary $id has $entryCount entries")
             }
-            
+
             val result = dictionaryMetadataDao.getAllDictionaries()
-            
+
             // Log dictionary entry counts after querying metadata
             Log.d(TAG, "getAllDictionaries returning ${result.size} dictionaries - Verifying entry counts")
             for (dict in result) {
                 val entryCount = getDictionaryEntryCount(dict.id)
                 Log.d(TAG, "VERIFY: After getAllDictionaries returns - Dictionary ${dict.id} has $entryCount entries")
             }
-            
+
             result
         } catch (e: Exception) {
             Log.e(TAG, "Error getting dictionaries", e)
@@ -215,14 +215,14 @@ class DictionaryRepository(context: Context) {
             Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId - Getting entry count")
             val entryCountBefore = getDictionaryEntryCount(dictionaryId)
             Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId has $entryCountBefore entries")
-            
+
             dictionaryMetadataDao.updatePriority(dictionaryId, newPriority)
             Log.d(TAG, "Updated priority of dictionary $dictionaryId to $newPriority")
-            
+
             // Verify entries weren't affected
             val entryCountAfter = getDictionaryEntryCount(dictionaryId)
             Log.d(TAG, "After updatePriority: Dictionary $dictionaryId has $entryCountAfter entries")
-            
+
             if (entryCountBefore != entryCountAfter) {
                 Log.e(TAG, "WARNING: Entry count changed from $entryCountBefore to $entryCountAfter during priority update!")
             }
@@ -247,46 +247,46 @@ class DictionaryRepository(context: Context) {
             val invalidEntries = entries.filter { it.term.isBlank() }
             if (invalidEntries.isNotEmpty()) {
                 Log.e(TAG, "Found ${invalidEntries.size} invalid entries with blank terms. Will skip these.")
-                
+
                 // Log the first few invalid entries for debugging
                 invalidEntries.take(3).forEachIndexed { index, entry ->
                     Log.e(TAG, "Invalid entry #$index - " +
-                          "term: '${entry.term}', reading: '${entry.reading}', " +
-                          "definition length: ${entry.definition.length}")
+                            "term: '${entry.term}', reading: '${entry.reading}', " +
+                            "definition length: ${entry.definition.length}")
                 }
             }
-            
+
             // Filter out invalid entries
             val validEntries = entries.filter { it.term.isNotBlank() }
-            
+
             // Log sample of entries being imported
             if (validEntries.isNotEmpty()) {
                 val sampleEntry = validEntries.first()
                 Log.d(TAG, "Sample entry: term='${sampleEntry.term}', " +
-                      "reading='${sampleEntry.reading}', " +
-                      "isHtml=${sampleEntry.isHtmlContent}, " +
-                      "definition length=${sampleEntry.definition.length}")
+                        "reading='${sampleEntry.reading}', " +
+                        "isHtml=${sampleEntry.isHtmlContent}, " +
+                        "definition length=${sampleEntry.definition.length}")
             }
 
             // Insert into database
             val result = dictionaryDao.insertAll(validEntries)
-            
+
             Log.d(TAG, "Successfully imported ${validEntries.size} entries to database")
             return validEntries.size
         } catch (e: Exception) {
             Log.e(TAG, "Error importing entries to database: ${e.message}", e)
-            
+
             // Try to provide more details about what might have gone wrong
             if (entries.isNotEmpty()) {
                 try {
                     val firstEntry = entries.first()
                     Log.e(TAG, "First entry details - term: '${firstEntry.term}', " +
-                          "def length: ${firstEntry.definition.length}")
+                            "def length: ${firstEntry.definition.length}")
                 } catch (ex: Exception) {
                     Log.e(TAG, "Could not inspect first entry: ${ex.message}")
                 }
             }
-            
+
             throw e
         }
     }
@@ -295,21 +295,21 @@ class DictionaryRepository(context: Context) {
      * Searches for entries matching the given query, ordered by dictionary priority
      * Use fastSearch=true for quick search without prioritization (better for interactive search)
      * Results are prioritized with exact matches at the top
-     * 
+     *
      * @param query The search query
      * @param profileId The profile ID to search dictionaries for (or null to search all dictionaries)
      * @param fastSearch Whether to use fast search (without full prioritization)
      * @return List of matching dictionary entries
      */
     suspend fun searchDictionary(
-        query: String, 
-        profileId: Long? = null, 
+        query: String,
+        profileId: Long? = null,
         fastSearch: Boolean = false
     ): List<DictionaryEntryEntity> {
         return try {
             val searchQuery = "%$query%"
             val exactQuery = query.trim() // For exact match comparison
-            
+
             if (profileId == null) {
                 // Search all dictionaries
                 if (fastSearch) {
@@ -346,11 +346,11 @@ class DictionaryRepository(context: Context) {
             null
         }
     }
-    
+
     /**
      * Bulk search for entries by exact term match
      * Much faster than individual queries for multiple terms
-     * 
+     *
      * @param terms List of terms to search for
      * @param profileId Optional profile ID to limit search to dictionaries in that profile
      * @return List of matching dictionary entries
@@ -362,7 +362,7 @@ class DictionaryRepository(context: Context) {
             }
             // Limit to 100 terms to avoid SQL query size limits
             val searchTerms = terms.take(100)
-            
+
             if (profileId == null || profileId <= 0) {
                 // Search all dictionaries
                 dictionaryDao.bulkSearchByExactTerms(searchTerms)
@@ -425,7 +425,7 @@ class DictionaryRepository(context: Context) {
             emptyList()
         }
     }
-    
+
     /**
      * Gets recent dictionary entries from specific dictionaries
      * @param limit Maximum number of entries to return
@@ -444,7 +444,7 @@ class DictionaryRepository(context: Context) {
             emptyList()
         }
     }
-    
+
     /**
      * Adds a word to the exported words table
      */
@@ -463,7 +463,7 @@ class DictionaryRepository(context: Context) {
             throw e
         }
     }
-    
+
     /**
      * Checks if a word has been exported to AnkiDroid
      */
@@ -475,7 +475,7 @@ class DictionaryRepository(context: Context) {
             false
         }
     }
-    
+
     /**
      * Gets all exported words
      */
@@ -487,7 +487,7 @@ class DictionaryRepository(context: Context) {
             emptyList()
         }
     }
-    
+
     /**
      * Gets the count of exported words
      */
@@ -499,10 +499,10 @@ class DictionaryRepository(context: Context) {
             0
         }
     }
-    
+
     /**
      * Imports a list of words as exported words (e.g., from Anki)
-     * 
+     *
      * @param words List of words to import
      * @param dictionaryId Dictionary ID (use 0 for "any dictionary")
      * @param ankiDeckId Anki deck ID (use -1 for words imported from .apkg)
@@ -514,7 +514,7 @@ class DictionaryRepository(context: Context) {
                 Log.w(TAG, "importExportedWords called with empty list")
                 return 0
             }
-            
+
             // Create ExportedWordEntity objects for each word
             val exportedWords = words.map { word ->
                 ExportedWordEntity(
@@ -523,10 +523,10 @@ class DictionaryRepository(context: Context) {
                     ankiDeckId = ankiDeckId
                 )
             }
-            
+
             // Insert into database
             val result = exportedWordsDao.insertAll(exportedWords)
-            
+
             Log.d(TAG, "Successfully imported ${exportedWords.size} exported words")
             return exportedWords.size
         } catch (e: Exception) {
@@ -534,7 +534,7 @@ class DictionaryRepository(context: Context) {
             throw e
         }
     }
-    
+
     /**
      * Gets all dictionaries for a specific profile
      * @param profileId The profile ID to get dictionaries for
@@ -594,7 +594,7 @@ class DictionaryRepository(context: Context) {
             false
         }
     }
-    
+
     /**
      * Removes all dictionaries from a profile
      * @param profileId The profile ID
@@ -608,7 +608,7 @@ class DictionaryRepository(context: Context) {
             throw e
         }
     }
-    
+
     /**
      * Adds multiple dictionaries to a profile at once
      * @param profileId The profile ID
@@ -624,7 +624,7 @@ class DictionaryRepository(context: Context) {
             throw e
         }
     }
-    
+
     /**
      * Gets word frequency data for a specific dictionary
      * @param dictionaryId The dictionary ID to get frequency data for
@@ -638,7 +638,7 @@ class DictionaryRepository(context: Context) {
             emptyList()
         }
     }
-    
+
     /**
      * Gets frequency for a specific word
      * @param word The word to get frequency for
@@ -652,7 +652,7 @@ class DictionaryRepository(context: Context) {
             null
         }
     }
-    
+
     /**
      * Gets frequency for a specific word in a specific dictionary
      * @param word The word to get frequency for
@@ -663,22 +663,22 @@ class DictionaryRepository(context: Context) {
         return try {
             // Add debug logging
             Log.d(TAG, "Looking up frequency for word='$word' in dictionary=$dictionaryId")
-            
+
             // Get total count of frequencies for this dictionary (debug only)
             val totalCount = wordFrequencyDao.getCountForDictionary(dictionaryId)
             Log.d(TAG, "Dictionary $dictionaryId has $totalCount frequency entries total")
-            
+
             var result: WordFrequencyEntity? = null
-            
+
             // First try with the improved combined query
             result = wordFrequencyDao.getFrequencyForWordInDictionary(word, dictionaryId)
-            
+
             // If that doesn't work, try with trimmed whitespace
             if (result == null) {
                 Log.d(TAG, "Standard lookup failed, trying with trimmed whitespace")
                 result = wordFrequencyDao.getFrequencyForWordTrimmed(word, dictionaryId)
             }
-            
+
             // If still no results, try a few more variations
             if (result == null) {
                 // Try with common character normalizations
@@ -688,39 +688,39 @@ class DictionaryRepository(context: Context) {
                     result = wordFrequencyDao.getFrequencyForWordInDictionary(normalizedWord, dictionaryId)
                 }
             }
-            
+
             // Log results
             if (result != null) {
                 Log.d(TAG, "Found frequency for '$word': #${result.frequency}")
             } else {
                 Log.d(TAG, "No frequency data found for '$word' in dictionary $dictionaryId")
-                
+
                 // Extra debugging - dump a few frequency entries from this dictionary to check format
                 val sampleEntries = wordFrequencyDao.getFrequenciesForDictionary(dictionaryId).take(3)
                 if (sampleEntries.isNotEmpty()) {
                     Log.d(TAG, "Sample frequency entries from dictionary $dictionaryId:")
-                    sampleEntries.forEach { 
+                    sampleEntries.forEach {
                         Log.d(TAG, "- Word: '${it.word}', Frequency: ${it.frequency}")
                     }
                 }
-                
+
                 // For debugging, check if we can find frequencies for this word in ANY dictionary
                 val anyDictResult = wordFrequencyDao.getFrequencyForWord(word)
                 if (anyDictResult != null) {
                     Log.d(TAG, "However, found frequency in dictionary ${anyDictResult.dictionaryId}: #${anyDictResult.frequency}")
                 }
-                
+
                 // Return the actual result from the database
                 // No synthetic test data
             }
-            
+
             result
         } catch (e: Exception) {
             Log.e(TAG, "Error getting frequency for word $word in dictionary $dictionaryId", e)
             null
         }
     }
-    
+
     /**
      * Gets dictionary metadata for a specific dictionary
      * @param dictionaryId The dictionary ID to get metadata for
@@ -734,7 +734,7 @@ class DictionaryRepository(context: Context) {
             null
         }
     }
-    
+
     /**
      * Saves word frequency data
      * @param entity The WordFrequencyEntity to save
@@ -748,7 +748,7 @@ class DictionaryRepository(context: Context) {
             -1
         }
     }
-    
+
     /**
      * Saves multiple word frequency entities at once
      * @param entities List of WordFrequencyEntity to save
@@ -762,7 +762,7 @@ class DictionaryRepository(context: Context) {
             emptyList()
         }
     }
-    
+
     /**
      * Gets the total count of word frequency entries
      * @return The count of word frequency entries
@@ -775,7 +775,7 @@ class DictionaryRepository(context: Context) {
             0
         }
     }
-    
+
     /**
      * Gets the count of word frequency entries for a specific dictionary
      * @param dictionaryId The dictionary ID to get count for
@@ -789,7 +789,7 @@ class DictionaryRepository(context: Context) {
             0
         }
     }
-    
+
     /**
      * Imports frequency data during dictionary import
      * This method should be called after importing dictionary entries
@@ -802,15 +802,15 @@ class DictionaryRepository(context: Context) {
                 Log.w(TAG, "importWordFrequencies called with empty list")
                 return 0
             }
-            
+
             // Log sample of entries being imported
             if (entries.isNotEmpty()) {
                 val sampleEntry = entries.first()
                 Log.d(TAG, "Sample frequency entry: word='${sampleEntry.word}', " +
-                      "dictionaryId=${sampleEntry.dictionaryId}, " +
-                      "frequency=${sampleEntry.frequency}")
+                        "dictionaryId=${sampleEntry.dictionaryId}, " +
+                        "frequency=${sampleEntry.frequency}")
             }
-            
+
             val result = wordFrequencyDao.insertAll(entries)
             Log.d(TAG, "Successfully imported ${entries.size} word frequencies to database")
             return entries.size
@@ -948,89 +948,93 @@ interface DictionaryDao {
     suspend fun insertAll(entries: List<DictionaryEntryEntity>): List<Long>
 
     @Query("SELECT e.* FROM dictionary_entries e " +
-           "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
-           "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
-           "WHERE LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query) " +
-           "ORDER BY " +
-           "CASE " +
-           "  WHEN LOWER(e.term) = LOWER(:exactQuery) THEN 0 " + // Exact term match gets highest priority
-           "  WHEN LOWER(e.term) LIKE LOWER(:exactQuery) || '%' THEN 1 " + // Term starts with query
-           "  WHEN LOWER(e.reading) = LOWER(:exactQuery) THEN 2 " + // Exact reading match
-           "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
-           "  ELSE 4 " + // Everything else (matches in definition, etc.)
-           "END, " +
-           "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
-           "m.priority DESC, e.id DESC")
+            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+            "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+            "WHERE LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query) " +
+            "ORDER BY " +
+            "CASE " +
+            "  WHEN LOWER(e.term) = LOWER(:exactQuery) THEN 0 " + // Exact term match gets highest priority
+            "  WHEN LOWER(e.term) LIKE LOWER(:exactQuery) || '%' THEN 1 " + // Term starts with query
+            "  WHEN LOWER(e.reading) = LOWER(:exactQuery) THEN 2 " + // Exact reading match
+            "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
+            "  ELSE 4 " + // Everything else (matches in definition, etc.)
+            "END, " +
+            "LENGTH(e.term), " + // Prioritize shorter terms (exact matches like "be" before "beautiful")
+            "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+            "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
+            "m.priority DESC, e.id DESC")
     suspend fun searchEntriesOrderedByPriority(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
 
     @Query("SELECT e.* FROM dictionary_entries e " +
-           "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
-           "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
-           "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
-           "WHERE (LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query)) " +
-           "AND pd.profileId = :profileId " +
-           "ORDER BY " +
-           "CASE " +
-           "  WHEN LOWER(e.term) = LOWER(:exactQuery) THEN 0 " + // Exact term match gets highest priority
-           "  WHEN LOWER(e.term) LIKE LOWER(:exactQuery) || '%' THEN 1 " + // Term starts with query
-           "  WHEN LOWER(e.reading) = LOWER(:exactQuery) THEN 2 " + // Exact reading match
-           "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
-           "  ELSE 4 " + // Everything else (matches in definition, etc.)
-           "END, " +
-           "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-           "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
-           "m.priority DESC, e.id DESC")
+            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+            "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
+            "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+            "WHERE (LOWER(e.term) LIKE LOWER(:query) OR LOWER(e.reading) LIKE LOWER(:query) OR LOWER(e.definition) LIKE LOWER(:query)) " +
+            "AND pd.profileId = :profileId " +
+            "ORDER BY " +
+            "CASE " +
+            "  WHEN LOWER(e.term) = LOWER(:exactQuery) THEN 0 " + // Exact term match gets highest priority
+            "  WHEN LOWER(e.term) LIKE LOWER(:exactQuery) || '%' THEN 1 " + // Term starts with query
+            "  WHEN LOWER(e.reading) = LOWER(:exactQuery) THEN 2 " + // Exact reading match
+            "  WHEN LOWER(e.reading) LIKE LOWER(:exactQuery) || '%' THEN 3 " + // Reading starts with query
+            "  ELSE 4 " + // Everything else (matches in definition, etc.)
+            "END, " +
+            "LENGTH(e.term), " + // Prioritize shorter terms (exact matches like "be" before "beautiful")
+            "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+            "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower numbers first)
+            "m.priority DESC, e.id DESC")
     suspend fun searchEntriesForProfile(query: String, exactQuery: String = query, profileId: Long): List<DictionaryEntryEntity>
 
     @Query("SELECT e.* FROM dictionary_entries e " +
-"JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
-"LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
-"WHERE e.term LIKE :query OR e.reading LIKE :query " +  /* Using index without LOWER for better performance */
-"ORDER BY " +
-"CASE " +
-"  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
-"  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
-"  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
-"  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
-"  ELSE 4 " + // Everything else
-"END, " +
-"CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-"CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
-"m.priority DESC, e.id DESC LIMIT 50")
+            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+            "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+            "WHERE e.term LIKE :query OR e.reading LIKE :query " +  /* Using index without LOWER for better performance */
+            "ORDER BY " +
+            "CASE " +
+            "  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
+            "  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
+            "  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
+            "  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
+            "  ELSE 4 " + // Everything else
+            "END, " +
+            "LENGTH(e.term), " + // Prioritize shorter terms (exact matches like "be" before "beautiful")
+            "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+            "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
+            "m.priority DESC, e.id DESC LIMIT 50")
     suspend fun fastSearchEntries(query: String, exactQuery: String = query): List<DictionaryEntryEntity>
-    
+
     @Query("SELECT e.* FROM dictionary_entries e " +
-"JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
-"JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
-"LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
-"WHERE (e.term LIKE :query OR e.reading LIKE :query) " +  /* Using index without LOWER for better performance */
-"AND pd.profileId = :profileId " +
-"ORDER BY " +
-"CASE " +
-"  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
-"  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
-"  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
-"  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
-"  ELSE 4 " + // Everything else
-"END, " +
-"CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
-"CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
-"m.priority DESC, e.id DESC LIMIT 50")
+            "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
+            "JOIN dictionary_metadata m ON e.dictionaryId = m.id " +
+            "LEFT JOIN word_frequencies wf ON e.term = wf.word AND e.dictionaryId = wf.dictionaryId " +
+            "WHERE (e.term LIKE :query OR e.reading LIKE :query) " +  /* Using index without LOWER for better performance */
+            "AND pd.profileId = :profileId " +
+            "ORDER BY " +
+            "CASE " +
+            "  WHEN e.term = :exactQuery THEN 0 " + // Exact term match gets highest priority
+            "  WHEN e.term LIKE :exactQuery || '%' THEN 1 " + // Term starts with query
+            "  WHEN e.reading = :exactQuery THEN 2 " + // Exact reading match
+            "  WHEN e.reading LIKE :exactQuery || '%' THEN 3 " + // Reading starts with query
+            "  ELSE 4 " + // Everything else
+            "END, " +
+            "LENGTH(e.term), " + // Prioritize shorter terms (exact matches like "be" before "beautiful")
+            "CASE WHEN wf.frequency IS NOT NULL THEN 0 ELSE 1 END, " + // Prioritize entries with frequency data
+            "CASE WHEN wf.frequency IS NOT NULL THEN wf.frequency ELSE 999999 END, " + // Sort by frequency (lower is better)
+            "m.priority DESC, e.id DESC LIMIT 50")
     suspend fun fastSearchEntriesForProfile(query: String, exactQuery: String = query, profileId: Long): List<DictionaryEntryEntity>
-    
+
     /* Bulk search for multiple terms at once */
     @Query("SELECT * FROM dictionary_entries WHERE term IN (:terms) LIMIT 100")
     suspend fun bulkSearchByExactTerms(terms: List<String>): List<DictionaryEntryEntity>
-    
+
     /* Bulk search for multiple terms at once, limited to a specific profile */
     @Query("SELECT e.* FROM dictionary_entries e " +
-           "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
-           "WHERE e.term IN (:terms) AND pd.profileId = :profileId LIMIT 100")
+            "JOIN profile_dictionaries pd ON e.dictionaryId = pd.dictionaryId " +
+            "WHERE e.term IN (:terms) AND pd.profileId = :profileId LIMIT 100")
     suspend fun bulkSearchByExactTermsForProfile(terms: List<String>, profileId: Long): List<DictionaryEntryEntity>
 
     @Query("SELECT * FROM dictionary_entries WHERE LOWER(term) = LOWER(:term) " +
-           "ORDER BY id DESC LIMIT 1")
+            "ORDER BY id DESC LIMIT 1")
     suspend fun getEntryByTerm(term: String): DictionaryEntryEntity?
 
     @Query("SELECT COUNT(*) FROM dictionary_entries")
@@ -1047,19 +1051,16 @@ interface DictionaryDao {
 
     @Query("SELECT * FROM dictionary_entries ORDER BY id DESC LIMIT :limit")
     suspend fun getRecentEntries(limit: Int): List<DictionaryEntryEntity>
-    
+
     @Query("SELECT * FROM dictionary_entries WHERE dictionaryId IN (:dictionaryIds) ORDER BY id DESC LIMIT :limit")
     suspend fun getRecentEntriesFromDictionaries(limit: Int, dictionaryIds: List<Long>): List<DictionaryEntryEntity>
 }
 
 /**
- * Room database
- */
-/**
  * Entity for tracking words that have been exported to AnkiDroid
  */
 @Entity(tableName = "exported_words",
-        indices = [Index(value = ["word"], unique = false)])
+    indices = [Index(value = ["word"], unique = false)])
 data class ExportedWordEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -1077,24 +1078,22 @@ data class ExportedWordEntity(
 interface ExportedWordsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(exportedWord: ExportedWordEntity): Long
-    
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(exportedWords: List<ExportedWordEntity>): List<Long>
-    
+
     @Query("SELECT EXISTS(SELECT 1 FROM exported_words WHERE LOWER(word) = LOWER(:word) LIMIT 1)")
     suspend fun isWordExported(word: String): Boolean
-    
+
     @Query("SELECT * FROM exported_words WHERE LOWER(word) = LOWER(:word) LIMIT 1")
     suspend fun getExportedWordByWord(word: String): ExportedWordEntity?
-    
+
     @Query("SELECT * FROM exported_words ORDER BY dateAdded DESC")
     suspend fun getAllExportedWords(): List<ExportedWordEntity>
-    
+
     @Query("SELECT COUNT(*) FROM exported_words")
     suspend fun getExportedWordCount(): Int
 }
-
-
 
 /**
  * Migration from version 3 to 4 - adds isHtmlContent column to dictionary_entries table
@@ -1122,7 +1121,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 dateAdded INTEGER NOT NULL
             )
         """)
-        
+
         // Create index on word column
         database.execSQL("CREATE INDEX IF NOT EXISTS index_exported_words_word ON exported_words (word)")
     }
