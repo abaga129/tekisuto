@@ -74,9 +74,9 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_crop)
-
-        // Apply insets to the root view
-        applyInsetsToView(android.R.id.content)
+        
+        // Since uCrop-n-Edit handles edge-to-edge properly, we no longer need to force full-screen here
+        // No need to apply insets to the root view, let uCrop-n-Edit handle it
 
         Log.d(TAG, "ImageCropActivity onCreate called")
         ocrHelper = OcrHelper(this)
@@ -137,6 +137,9 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
                 setCompressionQuality(90)
                 setHideBottomControls(false)
                 setFreeStyleCropEnabled(true)
+                
+                // Use status bar and toolbar colors to make them visible
+                // This helps prevent full-screen appearance
                 setStatusBarColor(resources.getColor(R.color.purple_700, theme))
                 setToolbarColor(resources.getColor(R.color.purple_500, theme))
                 setToolbarTitle(getString(R.string.crop_image))
@@ -150,6 +153,14 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
                 setContrastEnabled(true)
                 setSaturationEnabled(true)
                 setSharpnessEnabled(true)
+                
+                // Set active control color - standard method in UCrop.Options
+                setActiveControlsWidgetColor(resources.getColor(R.color.purple_500, theme))
+                
+                // Make toolbar text white for better visibility
+                setToolbarWidgetColor(resources.getColor(android.R.color.white, theme))
+                
+                // Root view background color is not needed
             }
             
             try {

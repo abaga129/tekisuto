@@ -41,7 +41,12 @@
         <item name="cardCornerRadius">8dp</item>
     </style>
     
-    <!-- Custom full-screen theme for UCrop to fix edge-to-edge issues in Android 15 -->
+    <!-- Base UCrop theme for all Android versions -->
+    <style name="Theme.UCrop" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+    
+    <!-- Legacy full-screen theme (kept for compatibility) -->
     <style name="Theme.CustomFullScreen" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>

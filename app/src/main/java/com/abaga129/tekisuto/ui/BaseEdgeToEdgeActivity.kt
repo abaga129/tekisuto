@@ -18,7 +18,11 @@ open class BaseEdgeToEdgeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Enable edge-to-edge before calling setContentView
-        enableEdgeToEdge()
+        // UCropActivity will have its own edge-to-edge handling through uCrop-n-Edit
+        val isUCropActivity = javaClass.name.contains("UCropActivity")
+        if (!isUCropActivity) {
+            enableEdgeToEdge()
+        }
         super.onCreate(savedInstanceState)
     }
 

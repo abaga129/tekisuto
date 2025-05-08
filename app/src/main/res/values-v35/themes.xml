@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 15+ (API 35+) specific UCrop theme - disables full-screen to use proper edge-to-edge -->
+    <style name="Theme.UCrop" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- No windowFullscreen flag for Android 15, as it handles edge-to-edge properly -->
+        <item name="android:windowContentOverlay">@null</item>
+        <!-- Additional material styling for better edge-to-edge integration -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
