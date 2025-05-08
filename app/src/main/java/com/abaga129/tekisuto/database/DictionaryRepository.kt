@@ -2,17 +2,14 @@ package com.abaga129.tekisuto.database
 
 import android.content.Context
 import android.util.Log
-import androidx.room.TypeConverter
-import org.json.JSONArray
-import org.json.JSONException
-import java.util.Date
 
 private const val TAG = "DictionaryRepository"
 
 /**
  * Dictionary repository to handle database operations
+ * Acts as a facade for the specialized repositories
  */
-class DictionaryRepository(context: Context) {
+class DictionaryRepository(private val context: Context) {
 
     companion object {
         @Volatile
@@ -26,700 +23,117 @@ class DictionaryRepository(context: Context) {
             }
         }
     }
-    private val database: AppDatabase = AppDatabase.createDatabase(context)
+
+    // Initialize specialized repositories
+    private val dictionaryMetadataRepo = DictionaryMetadataRepository.getInstance(context)
+    private val dictionaryEntryRepo = DictionaryEntryRepository.getInstance(context)
+    private val exportedWordRepo = ExportedWordRepository.getInstance(context)
+    private val profileDictionaryRepo = ProfileDictionaryRepository.getInstance(context)
+    private val wordFrequencyRepo = WordFrequencyRepository.getInstance(context)
 
     init {
         // For debugging only
-        Log.d("DictionaryRepository", "Database initialized with schema version ${database.openHelper.readableDatabase.version}")
+        Log.d(TAG, "DictionaryRepository initialized")
     }
 
-    init {
-        // Check database can be accessed (will fail early if schema issues)
-        try {
-            // Just open DB to verify connection works
-            database.openHelper.readableDatabase
-        } catch (e: IllegalStateException) {
-            if (e.message?.contains("Room cannot verify the data integrity") == true) {
-                Log.e(TAG, "Database schema mismatch. Please uninstall and reinstall the app or clear app data.", e)
-                // Display a Toast on the main thread
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    android.widget.Toast.makeText(
-                        context,
-                        "Database error detected. Please uninstall and reinstall the app.",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-    }
+    // DictionaryMetadataRepository delegates
+    suspend fun saveDictionaryMetadata(metadata: DictionaryMetadataEntity): Long =
+        dictionaryMetadataRepo.saveDictionaryMetadata(metadata)
 
-    private val dictionaryDao = database.dictionaryDao()
-    private val dictionaryMetadataDao = database.dictionaryMetadataDao()
-    private val exportedWordsDao = database.exportedWordsDao()
-    private val profileDictionaryDao = database.profileDictionaryDao()
-    private val wordFrequencyDao = database.wordFrequencyDao()
+    suspend fun getAllDictionaries(): List<DictionaryMetadataEntity> =
+        dictionaryMetadataRepo.getAllDictionaries()
 
-    /**
-     * Normalize Japanese characters for better matching
-     * - Convert full-width to half-width where appropriate
-     * - Normalize variations of similar characters
-     */
-    private fun normalizeJapaneseCharacters(input: String): String {
-        var result = input
+    suspend fun deleteDictionary(dictionaryId: Long) =
+        dictionaryMetadataRepo.deleteDictionary(dictionaryId)
 
-        // Replace full-width alphabetic characters with half-width
-        val fullWidthAlphabeticStart = 0xFF21 // Ａ
-        val fullWidthAlphabeticEnd = 0xFF5A // ｚ
-        val asciiOffset = 0xFF21 - 'A'.code
+    suspend fun updateDictionaryPriority(dictionaryId: Long, newPriority: Int) =
+        dictionaryMetadataRepo.updateDictionaryPriority(dictionaryId, newPriority)
 
-        val sb = StringBuilder()
-        for (c in result) {
-            val code = c.code
-            if (code in fullWidthAlphabeticStart..fullWidthAlphabeticEnd) {
-                sb.append((code - asciiOffset).toChar())
-            } else {
-                sb.append(c)
-            }
-        }
-        result = sb.toString()
+    suspend fun getDictionaryMetadata(dictionaryId: Long): DictionaryMetadataEntity? =
+        dictionaryMetadataRepo.getDictionaryMetadata(dictionaryId)
 
-        // Other specific normalizations
-        val replacements = mapOf(
-            '〜' to '～',
-            'ー' to '－',
-            '－' to '-',
-            '，' to ',',
-            '　' to ' '
-        )
+    // DictionaryEntryRepository delegates
+    suspend fun importDictionaryEntries(entries: List<DictionaryEntryEntity>): Int =
+        dictionaryEntryRepo.importDictionaryEntries(entries)
 
-        for ((fullWidth, halfWidth) in replacements) {
-            result = result.replace(fullWidth, halfWidth)
-        }
-
-        return result
-    }
-
-    /**
-     * Saves dictionary metadata and returns the ID
-     * Uses a safe approach that won't delete dictionary entries when updating
-     */
-    suspend fun saveDictionaryMetadata(metadata: DictionaryMetadataEntity): Long {
-        return try {
-            if (metadata.id > 0) {
-                // This is an update to an existing dictionary - use UPDATE query instead of REPLACE
-                val entryCountBefore = getDictionaryEntryCount(metadata.id)
-                Log.d(TAG, "Updating existing dictionary ${metadata.id} which has $entryCountBefore entries")
-
-                // Use direct update query instead of insert with REPLACE strategy
-                val updateCount = dictionaryMetadataDao.updateMetadata(
-                    id = metadata.id,
-                    title = metadata.title,
-                    author = metadata.author,
-                    description = metadata.description,
-                    sourceLanguage = metadata.sourceLanguage,
-                    targetLanguage = metadata.targetLanguage,
-                    entryCount = metadata.entryCount,
-                    priority = metadata.priority,
-                    importDate = metadata.importDate.time
-                )
-
-                Log.d(TAG, "Updated dictionary metadata with ID ${metadata.id}, rows affected: $updateCount")
-
-                // Check if entry count is still correct after update
-                val entryCountAfter = getDictionaryEntryCount(metadata.id)
-                Log.d(TAG, "After update, dictionary ${metadata.id} has $entryCountAfter entries")
-
-                if (entryCountAfter != entryCountBefore) {
-                    Log.e(TAG, "WARNING: Dictionary entries changed from $entryCountBefore to $entryCountAfter during metadata update!")
-                }
-
-                metadata.id
-            } else {
-                // New dictionary, use normal insert
-                val id = dictionaryMetadataDao.insert(metadata)
-                Log.d(TAG, "Inserted new dictionary metadata with ID $id")
-                id
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error saving dictionary metadata", e)
-            -1
-        }
-    }
-
-    /**
-     * Gets all dictionary metadata
-     */
-    suspend fun getAllDictionaries(): List<DictionaryMetadataEntity> {
-        return try {
-            // Log dictionary entry counts before querying metadata
-            Log.d(TAG, "getAllDictionaries called - Checking dictionary entry counts before query")
-            val dictionaryIds = dictionaryMetadataDao.getAllDictionaryIds()
-            for (id in dictionaryIds) {
-                val entryCount = getDictionaryEntryCount(id)
-                Log.d(TAG, "VERIFY: Before getAllDictionaries returns - Dictionary $id has $entryCount entries")
-            }
-
-            val result = dictionaryMetadataDao.getAllDictionaries()
-
-            // Log dictionary entry counts after querying metadata
-            Log.d(TAG, "getAllDictionaries returning ${result.size} dictionaries - Verifying entry counts")
-            for (dict in result) {
-                val entryCount = getDictionaryEntryCount(dict.id)
-                Log.d(TAG, "VERIFY: After getAllDictionaries returns - Dictionary ${dict.id} has $entryCount entries")
-            }
-
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting dictionaries", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Deletes a dictionary and all its entries
-     */
-    suspend fun deleteDictionary(dictionaryId: Long) {
-        try {
-            // Delete all entries for this dictionary
-            dictionaryDao.deleteEntriesByDictionaryId(dictionaryId)
-            // Delete the dictionary metadata
-            dictionaryMetadataDao.deleteDictionary(dictionaryId)
-            Log.d(TAG, "Dictionary with ID $dictionaryId deleted")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error deleting dictionary", e)
-            throw e
-        }
-    }
-
-    /**
-     * Updates the priority of a dictionary
-     */
-    suspend fun updateDictionaryPriority(dictionaryId: Long, newPriority: Int) {
-        try {
-            Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId - Getting entry count")
-            val entryCountBefore = getDictionaryEntryCount(dictionaryId)
-            Log.d(TAG, "Before updatePriority: Dictionary $dictionaryId has $entryCountBefore entries")
-
-            dictionaryMetadataDao.updatePriority(dictionaryId, newPriority)
-            Log.d(TAG, "Updated priority of dictionary $dictionaryId to $newPriority")
-
-            // Verify entries weren't affected
-            val entryCountAfter = getDictionaryEntryCount(dictionaryId)
-            Log.d(TAG, "After updatePriority: Dictionary $dictionaryId has $entryCountAfter entries")
-
-            if (entryCountBefore != entryCountAfter) {
-                Log.e(TAG, "WARNING: Entry count changed from $entryCountBefore to $entryCountAfter during priority update!")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error updating dictionary priority", e)
-            throw e
-        }
-    }
-
-    /**
-     * Imports dictionary entries into the database
-     * @return The number of entries successfully imported
-     */
-    suspend fun importDictionaryEntries(entries: List<DictionaryEntryEntity>): Int {
-        try {
-            if (entries.isEmpty()) {
-                Log.w(TAG, "importDictionaryEntries called with empty list")
-                return 0
-            }
-
-            // Check for invalid entries - log detailed debug info
-            val invalidEntries = entries.filter { it.term.isBlank() }
-            if (invalidEntries.isNotEmpty()) {
-                Log.e(TAG, "Found ${invalidEntries.size} invalid entries with blank terms. Will skip these.")
-
-                // Log the first few invalid entries for debugging
-                invalidEntries.take(3).forEachIndexed { index, entry ->
-                    Log.e(TAG, "Invalid entry #$index - " +
-                            "term: '${entry.term}', reading: '${entry.reading}', " +
-                            "definition length: ${entry.definition.length}")
-                }
-            }
-
-            // Filter out invalid entries
-            val validEntries = entries.filter { it.term.isNotBlank() }
-
-            // Log sample of entries being imported
-            if (validEntries.isNotEmpty()) {
-                val sampleEntry = validEntries.first()
-                Log.d(TAG, "Sample entry: term='${sampleEntry.term}', " +
-                        "reading='${sampleEntry.reading}', " +
-                        "isHtml=${sampleEntry.isHtmlContent}, " +
-                        "definition length=${sampleEntry.definition.length}")
-            }
-
-            // Insert into database
-            val result = dictionaryDao.insertAll(validEntries)
-
-            Log.d(TAG, "Successfully imported ${validEntries.size} entries to database")
-            return validEntries.size
-        } catch (e: Exception) {
-            Log.e(TAG, "Error importing entries to database: ${e.message}", e)
-
-            // Try to provide more details about what might have gone wrong
-            if (entries.isNotEmpty()) {
-                try {
-                    val firstEntry = entries.first()
-                    Log.e(TAG, "First entry details - term: '${firstEntry.term}', " +
-                            "def length: ${firstEntry.definition.length}")
-                } catch (ex: Exception) {
-                    Log.e(TAG, "Could not inspect first entry: ${ex.message}")
-                }
-            }
-
-            throw e
-        }
-    }
-
-    /**
-     * Searches for entries matching the given query, ordered by dictionary priority
-     * Use fastSearch=true for quick search without prioritization (better for interactive search)
-     * Results are prioritized with exact matches at the top
-     *
-     * @param query The search query
-     * @param profileId The profile ID to search dictionaries for (or null to search all dictionaries)
-     * @param fastSearch Whether to use fast search (without full prioritization)
-     * @return List of matching dictionary entries
-     */
     suspend fun searchDictionary(
         query: String,
         profileId: Long? = null,
         fastSearch: Boolean = false
-    ): List<DictionaryEntryEntity> {
-        return try {
-            val searchQuery = "%$query%"
-            val exactQuery = query.trim() // For exact match comparison
+    ): List<DictionaryEntryEntity> =
+        dictionaryEntryRepo.searchDictionary(query, profileId, fastSearch)
 
-            if (profileId == null) {
-                // Search all dictionaries
-                if (fastSearch) {
-                    // Fast search without priority ordering but with exact match prioritization
-                    dictionaryDao.fastSearchEntries(searchQuery, exactQuery)
-                } else {
-                    // Full search with priority ordering and exact match prioritization
-                    dictionaryDao.searchEntriesOrderedByPriority(searchQuery, exactQuery)
-                }
-            } else {
-                // Search only dictionaries associated with this profile
-                if (fastSearch) {
-                    // Fast search for profile dictionaries
-                    dictionaryDao.fastSearchEntriesForProfile(searchQuery, exactQuery, profileId)
-                } else {
-                    // Full search with priority for profile dictionaries
-                    dictionaryDao.searchEntriesForProfile(searchQuery, exactQuery, profileId)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error searching dictionary", e)
-            emptyList()
-        }
-    }
+    suspend fun bulkSearchByExactTerms(terms: List<String>, profileId: Long? = null): List<DictionaryEntryEntity> =
+        dictionaryEntryRepo.bulkSearchByExactTerms(terms, profileId)
 
-    /**
-     * Bulk search for entries by exact term match
-     * Much faster than individual queries for multiple terms
-     *
-     * @param terms List of terms to search for
-     * @param profileId Optional profile ID to limit search to dictionaries in that profile
-     * @return List of matching dictionary entries
-     */
-    suspend fun bulkSearchByExactTerms(terms: List<String>, profileId: Long? = null): List<DictionaryEntryEntity> {
-        return try {
-            if (terms.isEmpty()) {
-                return emptyList()
-            }
-            // Limit to 100 terms to avoid SQL query size limits
-            val searchTerms = terms.take(100)
+    suspend fun getDictionaryEntryCount(): Int =
+        dictionaryEntryRepo.getDictionaryEntryCount()
 
-            if (profileId == null || profileId <= 0) {
-                // Search all dictionaries
-                dictionaryDao.bulkSearchByExactTerms(searchTerms)
-            } else {
-                // Search only dictionaries for this profile
-                dictionaryDao.bulkSearchByExactTermsForProfile(searchTerms, profileId)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error searching dictionary by exact terms", e)
-            emptyList()
-        }
-    }
+    suspend fun getDictionaryEntryCount(dictionaryId: Long): Int =
+        dictionaryEntryRepo.getDictionaryEntryCount(dictionaryId)
 
-    /**
-     * Gets total count of dictionary entries across all dictionaries
-     */
-    suspend fun getDictionaryEntryCount(): Int {
-        return try {
-            dictionaryDao.getCount()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting dictionary entry count", e)
-            0
-        }
-    }
+    suspend fun getRecentEntries(limit: Int): List<DictionaryEntryEntity> =
+        dictionaryEntryRepo.getRecentEntries(limit)
 
-    /**
-     * Gets entry count for a specific dictionary
-     */
-    suspend fun getDictionaryEntryCount(dictionaryId: Long): Int {
-        return try {
-            dictionaryDao.getCountByDictionaryId(dictionaryId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting entry count for dictionary $dictionaryId", e)
-            0
-        }
-    }
+    suspend fun getRecentEntriesFromDictionaries(limit: Int, dictionaryIds: List<Long>): List<DictionaryEntryEntity> =
+        dictionaryEntryRepo.getRecentEntriesFromDictionaries(limit, dictionaryIds)
+
+    // ExportedWordRepository delegates
+    suspend fun addExportedWord(word: String, dictionaryId: Long, ankiDeckId: Long, ankiNoteId: Long? = null) =
+        exportedWordRepo.addExportedWord(word, dictionaryId, ankiDeckId, ankiNoteId)
+
+    suspend fun isWordExported(word: String): Boolean =
+        exportedWordRepo.isWordExported(word)
+
+    suspend fun getAllExportedWords(): List<ExportedWordEntity> =
+        exportedWordRepo.getAllExportedWords()
+
+    suspend fun importExportedWords(words: List<String>, dictionaryId: Long, ankiDeckId: Long): Int =
+        exportedWordRepo.importExportedWords(words, dictionaryId, ankiDeckId)
+
+    // ProfileDictionaryRepository delegates
+    suspend fun getDictionariesForProfile(profileId: Long): List<DictionaryMetadataEntity> =
+        profileDictionaryRepo.getDictionariesForProfile(profileId)
+
+    suspend fun addDictionaryToProfile(profileId: Long, dictionaryId: Long) =
+        profileDictionaryRepo.addDictionaryToProfile(profileId, dictionaryId)
+
+    suspend fun removeDictionaryFromProfile(profileId: Long, dictionaryId: Long) =
+        profileDictionaryRepo.removeDictionaryFromProfile(profileId, dictionaryId)
+
+    suspend fun isDictionaryInProfile(profileId: Long, dictionaryId: Long): Boolean =
+        profileDictionaryRepo.isDictionaryInProfile(profileId, dictionaryId)
+
+    // WordFrequencyRepository delegates
+    suspend fun getWordFrequencies(dictionaryId: Long): List<WordFrequencyEntity> =
+        wordFrequencyRepo.getWordFrequencies(dictionaryId)
+
+    suspend fun getFrequencyForWord(word: String): WordFrequencyEntity? =
+        wordFrequencyRepo.getFrequencyForWord(word)
+
+    suspend fun getFrequencyForWordInDictionary(word: String, dictionaryId: Long): WordFrequencyEntity? =
+        wordFrequencyRepo.getFrequencyForWordInDictionary(word, dictionaryId)
+
+    suspend fun getWordFrequencyCount(): Int =
+        wordFrequencyRepo.getWordFrequencyCount()
+
+    suspend fun getWordFrequencyCount(dictionaryId: Long): Int =
+        wordFrequencyRepo.getWordFrequencyCount(dictionaryId)
+
+    suspend fun importWordFrequencies(entries: List<WordFrequencyEntity>): Int =
+        wordFrequencyRepo.importWordFrequencies(entries)
 
     /**
      * Clears all dictionary entries and metadata
      */
     suspend fun clearAllDictionaries() {
         try {
-            dictionaryDao.deleteAll()
-            dictionaryMetadataDao.deleteAll()
+            dictionaryEntryRepo.clearAllDictionaryEntries()
+            dictionaryMetadataRepo.clearAllDictionaryMetadata()
             Log.d(TAG, "All dictionaries cleared")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing all dictionaries", e)
             throw e
         }
     }
-
-    /**
-     * Gets recent dictionary entries with limit
-     */
-    suspend fun getRecentEntries(limit: Int): List<DictionaryEntryEntity> {
-        return try {
-            dictionaryDao.getRecentEntries(limit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting recent entries", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Gets recent dictionary entries from specific dictionaries
-     * @param limit Maximum number of entries to return
-     * @param dictionaryIds List of dictionary IDs to include
-     * @return List of dictionary entries from the specified dictionaries
-     */
-    suspend fun getRecentEntriesFromDictionaries(limit: Int, dictionaryIds: List<Long>): List<DictionaryEntryEntity> {
-        return try {
-            if (dictionaryIds.isEmpty()) {
-                Log.d(TAG, "No dictionary IDs provided, returning empty list")
-                return emptyList()
-            }
-            dictionaryDao.getRecentEntriesFromDictionaries(limit, dictionaryIds)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting recent entries from dictionaries: ${e.message}", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Adds a word to the exported words table
-     */
-    suspend fun addExportedWord(word: String, dictionaryId: Long, ankiDeckId: Long, ankiNoteId: Long? = null) {
-        try {
-            val exportedWord = ExportedWordEntity(
-                word = word.trim().lowercase(),
-                dictionaryId = dictionaryId,
-                ankiDeckId = ankiDeckId,
-                ankiNoteId = ankiNoteId
-            )
-            exportedWordsDao.insert(exportedWord)
-            Log.d(TAG, "Added exported word: $word")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error adding exported word", e)
-            throw e
-        }
-    }
-
-    /**
-     * Checks if a word has been exported to AnkiDroid
-     */
-    suspend fun isWordExported(word: String): Boolean {
-        return try {
-            exportedWordsDao.isWordExported(word.trim().lowercase())
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking if word is exported", e)
-            false
-        }
-    }
-
-    /**
-     * Gets all exported words
-     */
-    suspend fun getAllExportedWords(): List<ExportedWordEntity> {
-        return try {
-            exportedWordsDao.getAllExportedWords()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting all exported words", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Imports a list of words as exported words (e.g., from Anki)
-     *
-     * @param words List of words to import
-     * @param dictionaryId Dictionary ID (use 0 for "any dictionary")
-     * @param ankiDeckId Anki deck ID (use -1 for words imported from .apkg)
-     * @return Number of words imported
-     */
-    suspend fun importExportedWords(words: List<String>, dictionaryId: Long, ankiDeckId: Long): Int {
-        try {
-            if (words.isEmpty()) {
-                Log.w(TAG, "importExportedWords called with empty list")
-                return 0
-            }
-
-            // Create ExportedWordEntity objects for each word
-            val exportedWords = words.map { word ->
-                ExportedWordEntity(
-                    word = word.trim().lowercase(),
-                    dictionaryId = dictionaryId,
-                    ankiDeckId = ankiDeckId
-                )
-            }
-
-            // Insert into database
-            val result = exportedWordsDao.insertAll(exportedWords)
-
-            Log.d(TAG, "Successfully imported ${exportedWords.size} exported words")
-            return exportedWords.size
-        } catch (e: Exception) {
-            Log.e(TAG, "Error importing exported words: ${e.message}", e)
-            throw e
-        }
-    }
-
-    /**
-     * Gets all dictionaries for a specific profile
-     * @param profileId The profile ID to get dictionaries for
-     * @return List of DictionaryMetadataEntity for the profile
-     */
-    suspend fun getDictionariesForProfile(profileId: Long): List<DictionaryMetadataEntity> {
-        return try {
-            profileDictionaryDao.getDictionaryMetadataForProfile(profileId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting dictionaries for profile $profileId", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Adds a dictionary to a profile
-     * @param profileId The profile ID
-     * @param dictionaryId The dictionary ID to add
-     */
-    suspend fun addDictionaryToProfile(profileId: Long, dictionaryId: Long) {
-        try {
-            val entity = ProfileDictionaryEntity(profileId, dictionaryId)
-            profileDictionaryDao.insert(entity)
-            Log.d(TAG, "Added dictionary $dictionaryId to profile $profileId")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error adding dictionary to profile", e)
-            throw e
-        }
-    }
-
-    /**
-     * Removes a dictionary from a profile
-     * @param profileId The profile ID
-     * @param dictionaryId The dictionary ID to remove
-     */
-    suspend fun removeDictionaryFromProfile(profileId: Long, dictionaryId: Long) {
-        try {
-            profileDictionaryDao.remove(profileId, dictionaryId)
-            Log.d(TAG, "Removed dictionary $dictionaryId from profile $profileId")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error removing dictionary from profile", e)
-            throw e
-        }
-    }
-
-    /**
-     * Check if a dictionary is in a profile
-     * @param profileId The profile ID
-     * @param dictionaryId The dictionary ID to check
-     * @return true if the dictionary is in the profile, false otherwise
-     */
-    suspend fun isDictionaryInProfile(profileId: Long, dictionaryId: Long): Boolean {
-        return try {
-            profileDictionaryDao.isDictionaryInProfile(profileId, dictionaryId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking if dictionary is in profile", e)
-            false
-        }
-    }
-
-    /**
-     * Gets word frequency data for a specific dictionary
-     * @param dictionaryId The dictionary ID to get frequency data for
-     * @return List of WordFrequencyEntity for the dictionary
-     */
-    suspend fun getWordFrequencies(dictionaryId: Long): List<WordFrequencyEntity> {
-        return try {
-            wordFrequencyDao.getFrequenciesForDictionary(dictionaryId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting word frequencies for dictionary $dictionaryId", e)
-            emptyList()
-        }
-    }
-
-    /**
-     * Gets frequency for a specific word
-     * @param word The word to get frequency for
-     * @return WordFrequencyEntity for the word, or null if not found
-     */
-    suspend fun getFrequencyForWord(word: String): WordFrequencyEntity? {
-        return try {
-            wordFrequencyDao.getFrequencyForWord(word)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting frequency for word $word", e)
-            null
-        }
-    }
-
-    /**
-     * Gets frequency for a specific word in a specific dictionary
-     * @param word The word to get frequency for
-     * @param dictionaryId The dictionary ID to get frequency from
-     * @return WordFrequencyEntity for the word, or null if not found
-     */
-    suspend fun getFrequencyForWordInDictionary(word: String, dictionaryId: Long): WordFrequencyEntity? {
-        return try {
-            // Add debug logging
-            Log.d(TAG, "Looking up frequency for word='$word' in dictionary=$dictionaryId")
-
-            // Get total count of frequencies for this dictionary (debug only)
-            val totalCount = wordFrequencyDao.getCountForDictionary(dictionaryId)
-            Log.d(TAG, "Dictionary $dictionaryId has $totalCount frequency entries total")
-
-            var result: WordFrequencyEntity? = null
-
-            // First try with the improved combined query
-            result = wordFrequencyDao.getFrequencyForWordInDictionary(word, dictionaryId)
-
-            // If that doesn't work, try with trimmed whitespace
-            if (result == null) {
-                Log.d(TAG, "Standard lookup failed, trying with trimmed whitespace")
-                result = wordFrequencyDao.getFrequencyForWordTrimmed(word, dictionaryId)
-            }
-
-            // If still no results, try a few more variations
-            if (result == null) {
-                // Try with common character normalizations
-                val normalizedWord = normalizeJapaneseCharacters(word)
-                if (normalizedWord != word) {
-                    Log.d(TAG, "Trying with normalized characters: '$word' -> '$normalizedWord'")
-                    result = wordFrequencyDao.getFrequencyForWordInDictionary(normalizedWord, dictionaryId)
-                }
-            }
-
-            // Log results
-            if (result != null) {
-                Log.d(TAG, "Found frequency for '$word': #${result.frequency}")
-            } else {
-                Log.d(TAG, "No frequency data found for '$word' in dictionary $dictionaryId")
-
-                // Extra debugging - dump a few frequency entries from this dictionary to check format
-                val sampleEntries = wordFrequencyDao.getFrequenciesForDictionary(dictionaryId).take(3)
-                if (sampleEntries.isNotEmpty()) {
-                    Log.d(TAG, "Sample frequency entries from dictionary $dictionaryId:")
-                    sampleEntries.forEach {
-                        Log.d(TAG, "- Word: '${it.word}', Frequency: ${it.frequency}")
-                    }
-                }
-
-                // For debugging, check if we can find frequencies for this word in ANY dictionary
-                val anyDictResult = wordFrequencyDao.getFrequencyForWord(word)
-                if (anyDictResult != null) {
-                    Log.d(TAG, "However, found frequency in dictionary ${anyDictResult.dictionaryId}: #${anyDictResult.frequency}")
-                }
-
-                // Return the actual result from the database
-                // No synthetic test data
-            }
-
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting frequency for word $word in dictionary $dictionaryId", e)
-            null
-        }
-    }
-
-    /**
-     * Gets dictionary metadata for a specific dictionary
-     * @param dictionaryId The dictionary ID to get metadata for
-     * @return DictionaryMetadataEntity for the dictionary, or null if not found
-     */
-    suspend fun getDictionaryMetadata(dictionaryId: Long): DictionaryMetadataEntity? {
-        return try {
-            dictionaryMetadataDao.getDictionaryById(dictionaryId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting dictionary metadata for dictionary $dictionaryId", e)
-            null
-        }
-    }
-
-    /**
-     * Gets the total count of word frequency entries
-     * @return The count of word frequency entries
-     */
-    suspend fun getWordFrequencyCount(): Int {
-        return try {
-            wordFrequencyDao.getTotalCount()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting word frequency count", e)
-            0
-        }
-    }
-
-    /**
-     * Gets the count of word frequency entries for a specific dictionary
-     * @param dictionaryId The dictionary ID to get count for
-     * @return The count of word frequency entries for the dictionary
-     */
-    suspend fun getWordFrequencyCount(dictionaryId: Long): Int {
-        return try {
-            wordFrequencyDao.getCountForDictionary(dictionaryId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting word frequency count for dictionary $dictionaryId", e)
-            0
-        }
-    }
-
-    /**
-     * Imports frequency data during dictionary import
-     * This method should be called after importing dictionary entries
-     * @param entries List of word frequencies to import
-     * @return The number of entries imported
-     */
-    suspend fun importWordFrequencies(entries: List<WordFrequencyEntity>): Int {
-        return try {
-            if (entries.isEmpty()) {
-                Log.w(TAG, "importWordFrequencies called with empty list")
-                return 0
-            }
-
-            // Log sample of entries being imported
-            if (entries.isNotEmpty()) {
-                val sampleEntry = entries.first()
-                Log.d(TAG, "Sample frequency entry: word='${sampleEntry.word}', " +
-                        "dictionaryId=${sampleEntry.dictionaryId}, " +
-                        "frequency=${sampleEntry.frequency}")
-            }
-
-            val result = wordFrequencyDao.insertAll(entries)
-            Log.d(TAG, "Successfully imported ${entries.size} word frequencies to database")
-            return entries.size
-        } catch (e: Exception) {
-            Log.e(TAG, "Error importing word frequencies: ${e.message}", e)
-            throw e
-        }
-    }
 }
-
