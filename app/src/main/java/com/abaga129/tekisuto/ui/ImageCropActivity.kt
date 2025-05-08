@@ -14,6 +14,7 @@ import com.abaga129.tekisuto.util.ProfileSettingsManager
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import com.yalantis.ucrop.UCrop
 import androidx.lifecycle.ViewModelProvider
+import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -29,6 +30,46 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
     private var profileId: Long = -1L
     private lateinit var profileViewModel: ProfileViewModel
     private var shouldRestoreFloatingButton: Boolean = false
+    
+    // Define ActivityResultLauncher for uCrop
+    private val uCropActivityResultLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // Handle the result from uCrop here
+        val resultCode = result.resultCode
+        val data = result.data
+        
+        // If user cancels and we should restore the floating button
+        if (resultCode == RESULT_CANCELED && shouldRestoreFloatingButton) {
+            Log.d(TAG, "User cancelled, ensuring floating button is restored")
+            restoreFloatingButton()
+            finishAndRemoveTask()
+            return@registerForActivityResult
+        }
+
+        if (resultCode == RESULT_OK) {
+            val resultUri = UCrop.getOutput(data!!)
+            if (resultUri != null) {
+                processCroppedImage(resultUri)
+            } else {
+                Toast.makeText(this, "Error: Could not get cropped image", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        } else if (resultCode == UCrop.RESULT_ERROR) {
+            val cropError = UCrop.getError(data!!)
+            Log.e(TAG, "Crop error: ${cropError?.message}")
+            Toast.makeText(this, "Error during cropping", Toast.LENGTH_SHORT).show()
+            finish()
+        } else if (resultCode == RESULT_CANCELED) {
+            // User cancelled the crop, exit and return to previous app
+            Log.d(TAG, "User cancelled crop operation, finishing activity")
+            // Ensure floating button is restored if needed
+            if (shouldRestoreFloatingButton) {
+                restoreFloatingButton()
+            }
+            finishAndRemoveTask()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,7 +132,7 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
             Log.d(TAG, "Source URI: $sourceUri")
             Log.d(TAG, "Destination URI: $destinationUri")
 
-            // Configure UCrop options
+            // Configure UCrop options with enhanced editing features from uCrop-n-Edit
             val options = UCrop.Options().apply {
                 setCompressionQuality(90)
                 setHideBottomControls(false)
@@ -99,6 +140,16 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
                 setStatusBarColor(resources.getColor(R.color.purple_700, theme))
                 setToolbarColor(resources.getColor(R.color.purple_500, theme))
                 setToolbarTitle(getString(R.string.crop_image))
+                
+                // Enable image editing features from uCrop-n-Edit
+                setShowCropFrame(true)
+                setShowCropGrid(true)
+                
+                // Enable brightness, contrast, saturation and sharpness controls
+                setBrightnessEnabled(true)
+                setContrastEnabled(true)
+                setSaturationEnabled(true)
+                setSharpnessEnabled(true)
             }
             
             try {
@@ -116,11 +167,11 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
             }
             
             Log.d(TAG, "Starting UCrop activity")
-            // Start UCrop activity
+            // Start UCrop activity with ActivityResultLauncher
             UCrop.of(sourceUri, destinationUri)
                 .withOptions(options)
-                .start(this)
-            Log.d(TAG, "UCrop.start() called")
+                .start(this, uCropActivityResultLauncher)
+            Log.d(TAG, "UCrop.start() called with ActivityResultLauncher")
 
         } catch (e: Exception) {
             Log.e(TAG, "Error starting crop: ${e.message}")
@@ -139,37 +190,14 @@ class ImageCropActivity : BaseEdgeToEdgeActivity() {
         }
     }
 
+    // The onActivityResult method is now replaced by the ActivityResultLauncher
+    // If you have other activity results to handle, you can keep this method
+    // but remove the UCrop handling since it's now in the ActivityResultLauncher
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        // If user cancels and we should restore the floating button
-        if (resultCode == RESULT_CANCELED && shouldRestoreFloatingButton) {
-            Log.d(TAG, "User cancelled, ensuring floating button is restored")
-            restoreFloatingButton()
-        }
-
-        if (requestCode == UCrop.REQUEST_CROP && resultCode == RESULT_OK) {
-            val resultUri = UCrop.getOutput(data!!)
-            if (resultUri != null) {
-                processCroppedImage(resultUri)
-            } else {
-                Toast.makeText(this, "Error: Could not get cropped image", Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        } else if (resultCode == UCrop.RESULT_ERROR) {
-            val cropError = UCrop.getError(data!!)
-            Log.e(TAG, "Crop error: ${cropError?.message}")
-            Toast.makeText(this, "Error during cropping", Toast.LENGTH_SHORT).show()
-            finish()
-        } else if (resultCode == RESULT_CANCELED) {
-            // User cancelled the crop, exit and return to previous app
-            Log.d(TAG, "User cancelled crop operation, finishing activity")
-            // Ensure floating button is restored if needed
-            if (shouldRestoreFloatingButton) {
-                restoreFloatingButton()
-            }
-            finishAndRemoveTask()
-        }
+        // Handle other activity results here if needed
+        Log.d(TAG, "onActivityResult called with requestCode: $requestCode, resultCode: $resultCode")
     }
 
     private fun processCroppedImage(uri: Uri) {

@@ -153,7 +153,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     implementation("androidx.preference:preference-ktx:1.2.1")
-    implementation("com.github.yalantis:ucrop:2.2.8")  // Image cropping library
+    implementation("com.github.jens-muenker:uCrop-n-Edit:4.1.0")  // Image cropping library - fork of uCrop with additional features
     implementation("com.github.ankidroid:Anki-Android:api-v1.1.0")
     implementation("com.google.mlkit:translate:17.0.2")  // ML Kit for Translation
     implementation("com.google.mlkit:language-id:17.0.4")  // ML Kit Language Identification
