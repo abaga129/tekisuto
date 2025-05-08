@@ -3,6 +3,7 @@ package com.abaga129.tekisuto.database
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import com.abaga129.tekisuto.database.DictionaryMetadataEntity
 
 /**
  * Entity that represents the many-to-many relationship between profiles and dictionaries.
