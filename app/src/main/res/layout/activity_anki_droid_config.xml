@@ -188,6 +188,19 @@
             android:id="@+id/audio_field_spinner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" />
+            
+        <!-- Pitch Accent Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/pitch_accent_field"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/pitch_accent_field_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginBottom="16dp" />
 
         <!-- Buttons -->

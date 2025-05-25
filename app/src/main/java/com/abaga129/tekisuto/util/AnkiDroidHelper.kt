@@ -25,6 +25,14 @@ class AnkiDroidHelper(private val context: Context) {
     private val api = AddContentApi(context)
     private val dictionaryRepository = DictionaryRepository.getInstance(context)
     private var activeProfile: ProfileEntity? = null
+    
+    /**
+     * Get the dictionary repository
+     * This is used by AnkiExportManager to get pitch accent data
+     */
+    fun getDictionaryRepository(): DictionaryRepository {
+        return dictionaryRepository
+    }
 
     companion object {
         private const val TAG = "AnkiDroidHelper"
@@ -41,6 +49,7 @@ class AnkiDroidHelper(private val context: Context) {
         const val PREF_FIELD_PART_OF_SPEECH = "field_part_of_speech"
         const val PREF_FIELD_TRANSLATION = "field_translation"
         const val PREF_FIELD_AUDIO = "field_audio"
+        const val PREF_FIELD_PITCH_ACCENT = "field_pitch_accent"
         const val DEFAULT_FIELD_VALUE = "0"
         
         // Profile settings key in default shared preferences
@@ -115,7 +124,8 @@ class AnkiDroidHelper(private val context: Context) {
         fieldContext: Int,
         fieldPartOfSpeech: Int,
         fieldTranslation: Int,
-        fieldAudio: Int = -1 // Default to -1 (not set)
+        fieldAudio: Int = -1, // Default to -1 (not set)
+        fieldPitchAccent: Int = -1 // Default to -1 (not set)
     ) {
         // First save to legacy preferences (for backward compatibility)
         prefs.edit().apply {
@@ -129,6 +139,7 @@ class AnkiDroidHelper(private val context: Context) {
             putInt(PREF_FIELD_PART_OF_SPEECH, fieldPartOfSpeech)
             putInt(PREF_FIELD_TRANSLATION, fieldTranslation)
             putInt(PREF_FIELD_AUDIO, fieldAudio)
+            putInt(PREF_FIELD_PITCH_ACCENT, fieldPitchAccent)
             apply()
         }
         
@@ -145,7 +156,8 @@ class AnkiDroidHelper(private val context: Context) {
                 ankiFieldContext = fieldContext,
                 ankiFieldPartOfSpeech = fieldPartOfSpeech,
                 ankiFieldTranslation = fieldTranslation,
-                ankiFieldAudio = fieldAudio
+                ankiFieldAudio = fieldAudio,
+                ankiFieldPitchAccent = fieldPitchAccent
             )
             
             // This is not ideal as we're passing the profile back to the caller
@@ -186,7 +198,8 @@ class AnkiDroidHelper(private val context: Context) {
                 context = profile.ankiFieldContext,
                 partOfSpeech = profile.ankiFieldPartOfSpeech,
                 translation = profile.ankiFieldTranslation,
-                audio = profile.ankiFieldAudio
+                audio = profile.ankiFieldAudio,
+                pitchAccent = profile.ankiFieldPitchAccent
             )
         } else {
             FieldMappings(
@@ -197,7 +210,8 @@ class AnkiDroidHelper(private val context: Context) {
                 context = prefs.getInt(PREF_FIELD_CONTEXT, 0),
                 partOfSpeech = prefs.getInt(PREF_FIELD_PART_OF_SPEECH, 0),
                 translation = prefs.getInt(PREF_FIELD_TRANSLATION, 0),
-                audio = prefs.getInt(PREF_FIELD_AUDIO, -1)
+                audio = prefs.getInt(PREF_FIELD_AUDIO, -1),
+                pitchAccent = prefs.getInt(PREF_FIELD_PITCH_ACCENT, -1)
             )
         }
     }
@@ -213,7 +227,8 @@ class AnkiDroidHelper(private val context: Context) {
         context: String,
         screenshotPath: String?,
         translation: String = "",
-        audioPath: String? = null
+        audioPath: String? = null,
+        pitchAccent: String? = null
     ): Boolean {
         if (!isAnkiDroidAvailable()) {
             Log.e(TAG, "AnkiDroid not available")
@@ -232,14 +247,14 @@ class AnkiDroidHelper(private val context: Context) {
         try {
             // Try using the API first
             return addNoteWithApi(
-                word, reading, definition, partOfSpeech, context, screenshotPath, translation, audioPath,
+                word, reading, definition, partOfSpeech, context, screenshotPath, translation, audioPath, pitchAccent,
                 deckId, modelId, fieldMappings
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error using AnkiDroid API, falling back to Intent method", e)
             // Fallback to using Intent if API fails
             return addNoteWithIntent(
-                word, reading, definition, partOfSpeech, context, translation,
+                word, reading, definition, partOfSpeech, context, translation, pitchAccent,
                 getDeckName(deckId), getModelName(modelId), fieldMappings
             )
         }
@@ -257,6 +272,7 @@ class AnkiDroidHelper(private val context: Context) {
         screenshotPath: String?,
         translation: String,
         audioPath: String?,
+        pitchAccent: String?,
         deckId: Long,
         modelId: Long,
         fieldMappings: FieldMappings
@@ -323,6 +339,11 @@ class AnkiDroidHelper(private val context: Context) {
                     fieldValues[fields[fieldMappings.audio]] = audioTag
                 }
             }
+            
+            // Pitch accent field (optional)
+            if (fieldMappings.pitchAccent >= 0 && fieldMappings.pitchAccent < fields.size && pitchAccent != null) {
+                fieldValues[fields[fieldMappings.pitchAccent]] = pitchAccent
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error mapping fields", e)
             return false
@@ -374,6 +395,7 @@ class AnkiDroidHelper(private val context: Context) {
         partOfSpeech: String,
         context: String,
         translation: String,
+        pitchAccent: String?,
         deckName: String,
         modelName: String,
         fieldMappings: FieldMappings
@@ -390,7 +412,8 @@ class AnkiDroidHelper(private val context: Context) {
                 fieldMappings.definition.takeIf { it >= 0 } ?: 0,
                 fieldMappings.partOfSpeech.takeIf { it >= 0 } ?: 0,
                 fieldMappings.context.takeIf { it >= 0 } ?: 0,
-                fieldMappings.translation.takeIf { it >= 0 } ?: 0
+                fieldMappings.translation.takeIf { it >= 0 } ?: 0,
+                fieldMappings.pitchAccent.takeIf { it >= 0 } ?: 0
             ) + 1
             
             // Prepare field values - ensure array is large enough
@@ -425,6 +448,10 @@ class AnkiDroidHelper(private val context: Context) {
             
             if (fieldMappings.translation >= 0 && translation.isNotBlank()) {
                 fields[fieldMappings.translation] = translation
+            }
+            
+            if (fieldMappings.pitchAccent >= 0 && pitchAccent != null && pitchAccent.isNotBlank()) {
+                fields[fieldMappings.pitchAccent] = pitchAccent
             }
             
             intent.putExtra("fields", fields)
@@ -564,5 +591,6 @@ data class FieldMappings(
     val context: Int = 0,
     val partOfSpeech: Int = 0,
     val translation: Int = 0,
-    val audio: Int = -1
+    val audio: Int = -1,
+    val pitchAccent: Int = -1
 )

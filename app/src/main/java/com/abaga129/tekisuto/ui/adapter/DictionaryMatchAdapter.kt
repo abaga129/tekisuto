@@ -34,6 +34,7 @@ import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.util.FrequencyShieldHelper
 import com.abaga129.tekisuto.util.LanguageDetector
+import com.abaga129.tekisuto.util.PitchAccentHelper
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -112,7 +113,8 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val termTextView: TextView = itemView.findViewById(R.id.term_text)
         private val readingTextView: TextView = itemView.findViewById(R.id.reading_text)
         private val partOfSpeechTextView: TextView = itemView.findViewById(R.id.part_of_speech_text)
-        private val frequencyTextView: TextView = itemView.findViewById(R.id.frequency_text)
+//        private val frequencyTextView: TextView = itemView.findViewById(R.id.frequency_shield)
+//        private val pitchAccentTextView: TextView? = itemView.findViewById(R.id.pitch_shield)
         private val definitionTextView: TextView = itemView.findViewById(R.id.definition_text)
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
         private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
@@ -122,6 +124,11 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val frequencyShieldContainer: LinearLayout? = itemView.findViewById(R.id.shield_container)
         private val dictionaryNameView: TextView? = itemView.findViewById(R.id.shield_dictionary_name)
         private val frequencyValueView: TextView? = itemView.findViewById(R.id.shield_frequency_value)
+
+        // Frequency shield views
+        private val pitchShieldContainer: LinearLayout? = itemView.findViewById(R.id.pitch_shield_container)
+        private val pitchDictionaryNameView: TextView? = itemView.findViewById(R.id.pitch_dictionary_name)
+        private val pitchValueView: TextView? = itemView.findViewById(R.id.pitch_value)
 
         /**
          * Get theme-aware surface color to respect light/dark theme
@@ -190,10 +197,6 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 partOfSpeechTextView.visibility = View.GONE
             }
 
-            // Check for frequency data and display if available
-            // Hide legacy frequency text view (now handled by shield)
-            frequencyTextView.visibility = View.GONE
-            
             // Use the shield for frequency display if we have the right views
             if (dictionaryRepository != null && lifecycleScope != null && 
                 frequencyShieldContainer != null && dictionaryNameView != null && frequencyValueView != null) {
@@ -250,9 +253,47 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                         }
                     }
                 }
-            } else {
-                // If we're missing any required views, hide the legacy frequency view
-                frequencyTextView.visibility = View.GONE
+            }
+            
+            // Display pitch accent data if available
+            if (pitchShieldContainer != null && pitchValueView != null && dictionaryRepository != null && lifecycleScope != null) {
+                // Initially hide the pitch accent view
+                pitchShieldContainer.visibility = View.GONE
+                
+                lifecycleScope.launch {
+                    try {
+                        // First try to find pitch accent for the specific term and reading
+                        var pitchAccentData = if (entry.reading.isNotEmpty()) {
+                            dictionaryRepository.getPitchAccentForWordAndReading(entry.term, entry.reading)
+                        } else {
+                            null
+                        }
+                        
+                        // Update UI on the main thread
+                        withContext(Dispatchers.Main) {
+                            if (pitchAccentData != null) {
+                                // Use the PitchAccentHelper to format the display
+                                PitchAccentHelper.setupPitchAccentView(
+                                    itemView.context,
+                                    pitchValueView,
+                                    pitchAccentData.pitchAccent
+                                )
+                                
+                                Log.d("DictionaryAdapter", "Displayed pitch accent for '${entry.term}': ${pitchAccentData.pitchAccent}")
+                            } else {
+                                // Hide the pitch accent view if we don't have data
+                                pitchShieldContainer.visibility = View.GONE
+                                Log.d("DictionaryAdapter", "No pitch accent data available for '${entry.term}'")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("DictionaryAdapter", "Error retrieving pitch accent data: ${e.message}", e)
+                        withContext(Dispatchers.Main) {
+                            // Hide the pitch accent view on error
+                            pitchShieldContainer.visibility = View.GONE
+                        }
+                    }
+                }
             }
 
             // Display definition or show placeholder if empty
@@ -461,6 +502,9 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
 
             // Reset frequency shield if available
             frequencyShieldContainer?.let { FrequencyShieldHelper.hideFrequencyShield(it) }
+            
+            // Reset pitch accent view if available
+            pitchShieldContainer?.visibility = View.GONE
         }
 
         /**

@@ -51,6 +51,11 @@
     <color name="badge_uncommon">#FF9800</color>         <!-- Orange for less common words -->
     <color name="badge_rare">#9E9E9E</color>             <!-- Gray for rare words -->
     
+    <!-- Pitch accent colors -->
+    <color name="accent_drop_color">#E53935</color>      <!-- Red for pitch drops (↓) -->
+    <color name="accent_rise_color">#2196F3</color>      <!-- Blue for pitch rises (↑) -->
+    <color name="pitch_accent_background">#F0F4F7</color><!-- Light background for pitch accent -->
+    
     <!-- Voice selection dialog -->
     <color name="headerBackground">#F0F4F7</color>        <!-- Light blue-gray for headers -->
 </resources>

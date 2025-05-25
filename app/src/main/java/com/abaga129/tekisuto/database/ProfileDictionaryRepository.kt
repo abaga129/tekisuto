@@ -33,6 +33,25 @@ class ProfileDictionaryRepository(context: Context) : BaseRepository(context) {
             profileDictionaryDao.getDictionaryMetadataForProfile(profileId)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting dictionaries for profile $profileId", e)
+            
+            // If there's a database error, it might be related to a column issue
+            // Try to explicitly handle the case where ankiFieldPitchAccent might be missing
+            if (e.message?.contains("ankiFieldPitchAccent") == true) {
+                Log.d(TAG, "Attempting to recover from ankiFieldPitchAccent column error")
+                try {
+                    // Execute the SQL to add the column directly 
+                    database.openHelper.writableDatabase.execSQL("""
+                        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ankiFieldPitchAccent INTEGER NOT NULL DEFAULT -1
+                    """)
+                    
+                    // Try the query again
+                    return profileDictionaryDao.getDictionaryMetadataForProfile(profileId)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Recovery attempt failed", e2)
+                }
+            }
+            
+            // Return empty list as fallback
             emptyList()
         }
     }

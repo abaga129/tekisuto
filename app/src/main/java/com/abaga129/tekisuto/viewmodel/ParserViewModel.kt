@@ -9,8 +9,10 @@ import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryMetadataEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.database.WordFrequencyEntity
+import com.abaga129.tekisuto.database.WordPitchAccentEntity
 import com.abaga129.tekisuto.model.yomitan.YomitanDictionaryEntry
 import com.abaga129.tekisuto.model.yomitan.YomitanIndexInfo
+import com.abaga129.tekisuto.model.yomitan.YomitanPitchAccentEntry
 import com.abaga129.tekisuto.model.yomitan.YomitanTermMetaEntry
 import com.abaga129.tekisuto.util.YomitanDictionaryExtractor
 import com.abaga129.tekisuto.util.JsonStreamParser
@@ -90,6 +92,58 @@ class ParserViewModel private constructor() {
             Log.d(TAG, "Processed ${frequencyMap.size} frequency entries from ${metaBankFile.name}")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading frequency data: ${e.message}")
+        }
+    }
+    
+    /**
+     * Loads pitch accent data from a term_meta_bank file
+     * This parses files in the format: [["term","pitch","reading","pattern"], ...]
+     */
+    private fun loadPitchAccentData(metaBankFile: File, pitchAccentList: MutableList<WordPitchAccentEntity>, dictionaryId: Long) {
+        try {
+            // Read the file content
+            val content = metaBankFile.readText()
+            
+            // Parse the JSON array
+            val jsonArray = org.json.JSONArray(content)
+            
+            // Process each entry
+            for (i in 0 until jsonArray.length()) {
+                try {
+                    val entry = jsonArray.getJSONArray(i)
+                    
+                    // Check if this is a pitch accent entry
+                    if (entry.length() >= 2 && entry.getString(1) == "pitch") {
+                        val term = entry.getString(0)
+                        
+                        // Handle different pitch accent formats
+                        val reading = if (entry.length() >= 3) entry.getString(2) else term
+                        val pattern = if (entry.length() >= 4) entry.getString(3) else "0" // Default to heiban (0)
+                        
+                        // Create and add the entity to the list
+                        pitchAccentList.add(WordPitchAccentEntity(
+                            dictionaryId = dictionaryId,
+                            word = term,
+                            reading = reading,
+                            pitchAccent = pattern
+                        ))
+                        
+                        // Log a few examples for debugging
+                        if (i < 5 || i % 10000 == 0) {
+                            Log.d(TAG, "Parsed pitch accent pattern '$pattern' for term: $term, reading: $reading")
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Log error but continue processing other entries
+                    if (i < 10) {  // Only log errors for the first few entries to avoid log spam
+                        Log.e(TAG, "Error parsing pitch accent entry at index $i: ${e.message}")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "Processed ${pitchAccentList.size} pitch accent entries from ${metaBankFile.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading pitch accent data: ${e.message}")
         }
     }
 
@@ -288,11 +342,12 @@ class ParserViewModel private constructor() {
                 _importProgress.postValue(50) // Set progress to 50% before processing frequency data
             }
             
-            // Initialize frequency count
+            // Initialize frequency and pitch accent counts
             var frequencyCount = 0
+            var pitchAccentCount = 0
             var parseFailures = 0
             
-            // Process term meta banks for frequency information
+            // Process term meta banks for frequency information and pitch accent data
             if (termMetaBankFiles.isNotEmpty()) {
                 Log.d(TAG, "Found ${termMetaBankFiles.size} term meta bank files")
                 
@@ -305,8 +360,8 @@ class ParserViewModel private constructor() {
                     _importProgress.postValue(progress)
                     
                     try {
-                        // First try to process using the standard approach
-                        var processedEntries = false
+                        // First try to process frequency data using the standard approach
+                        var processedFrequencyEntries = false
                         var frequencyEntriesFromStandardMethod = 0
                         
                         try {
@@ -334,7 +389,7 @@ class ParserViewModel private constructor() {
                                         val importedCount = dictionaryRepository.importWordFrequencies(batch)
                                         frequencyCount += importedCount
                                         frequencyEntriesFromStandardMethod += importedCount
-                                        processedEntries = true
+                                        processedFrequencyEntries = true
                                     }
                                 }
                             }
@@ -345,8 +400,8 @@ class ParserViewModel private constructor() {
                             parseFailures++
                         }
                         
-                        // If standard processing failed or no entries were processed, try alternative method
-                        if (!processedEntries) {
+                        // If standard processing failed or no entries were processed, try alternative method for frequency
+                        if (!processedFrequencyEntries) {
                             Log.d(TAG, "Standard processing failed or found no entries, trying alternative method for ${metaBankFile.name}")
                             
                             // Use the fallback method for the specific frequency format [["term","freq",12345], ...]
@@ -378,6 +433,66 @@ class ParserViewModel private constructor() {
                             }
                         }
                         
+                        // Now try to process pitch accent data
+                        var processedPitchAccents = false
+                        
+                        try {
+                            // Use JsonStreamParser to process the file incrementally
+                            JsonStreamParser.processJsonArrayFile(
+                                file = metaBankFile,
+                                chunkSize = STREAM_CHUNK_SIZE
+                            ) { chunk ->
+                                // Convert JSON entries to WordPitchAccentEntity objects
+                                val pitchAccentEntries = chunk.mapNotNull { entryArray ->
+                                    try {
+                                        YomitanPitchAccentEntry.fromJsonArray(entryArray, dictionaryId)
+                                    } catch (e: Exception) {
+                                        null // Silent failure - many entries will not be pitch accent entries
+                                    }
+                                }
+                                
+                                // Process in smaller batches for DB operations
+                                val batches = pitchAccentEntries.chunked(BATCH_SIZE)
+                                
+                                for (batch in batches) {
+                                    // Import batch to database
+                                    if (batch.isNotEmpty()) {
+                                        val importedCount = dictionaryRepository.importWordPitchAccents(batch)
+                                        pitchAccentCount += importedCount
+                                        processedPitchAccents = true
+                                    }
+                                }
+                            }
+                            
+                            if (processedPitchAccents) {
+                                Log.d(TAG, "Processed pitch accent entries from ${metaBankFile.name}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error processing pitch accent data: ${e.message}")
+                        }
+                        
+                        // If standard processing failed or no entries were processed, try alternative method for pitch accent
+                        if (!processedPitchAccents) {
+                            Log.d(TAG, "Standard processing for pitch accent failed, trying alternative method for ${metaBankFile.name}")
+                            
+                            // Use the fallback method for pitch accent data
+                            val pitchAccentList = mutableListOf<WordPitchAccentEntity>()
+                            loadPitchAccentData(metaBankFile, pitchAccentList, dictionaryId)
+                            
+                            if (pitchAccentList.isNotEmpty()) {
+                                // Process in batches
+                                val batches = pitchAccentList.chunked(BATCH_SIZE)
+                                for (batch in batches) {
+                                    if (batch.isNotEmpty()) {
+                                        val importedCount = dictionaryRepository.importWordPitchAccents(batch)
+                                        pitchAccentCount += importedCount
+                                    }
+                                }
+                                
+                                Log.d(TAG, "Processed ${pitchAccentList.size} pitch accent entries from ${metaBankFile.name} using alternative method")
+                            }
+                        }
+                        
                         Log.d(TAG, "Completed processing term meta bank file: ${metaBankFile.name}")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error processing term meta bank file ${metaBankFile.name}: ${e.message}")
@@ -385,33 +500,41 @@ class ParserViewModel private constructor() {
                 }
                 
                 if (parseFailures > 0) {
-                    Log.w(TAG, "Encountered $parseFailures parsing failures during frequency data processing")
+                    Log.w(TAG, "Encountered $parseFailures parsing failures during meta data processing")
                 }
                 
-                Log.d(TAG, "Imported $frequencyCount frequency entries in total")
+                Log.d(TAG, "Imported $frequencyCount frequency entries and $pitchAccentCount pitch accent entries in total")
             } else {
-                Log.d(TAG, "No term meta bank files found for frequency information")
+                Log.d(TAG, "No term meta bank files found for frequency or pitch accent information")
             }
 
             
             // Update the entry count in dictionary metadata - force a proper update
-            // For frequency-only dictionaries, set entry count to frequency count to ensure they appear in the UI
-            isFrequencyOnlyDict = successfulEntryCount == 0 && frequencyCount > 0
-            val finalEntryCount = if (isFrequencyOnlyDict) frequencyCount else successfulEntryCount
+            // For frequency/pitch-only dictionaries, set entry count to meta count to ensure they appear in the UI
+            isFrequencyOnlyDict = successfulEntryCount == 0 && (frequencyCount > 0 || pitchAccentCount > 0)
+            val finalEntryCount = if (isFrequencyOnlyDict) Math.max(frequencyCount, pitchAccentCount) else successfulEntryCount
+            
+            // Construct a description with information about the entry types
+            var updatedDescription = metadataEntity.description
+            if (frequencyCount > 0 || pitchAccentCount > 0) {
+                updatedDescription += if (updatedDescription.isNotEmpty()) " " else ""
+                
+                val metaInfo = mutableListOf<String>()
+                if (frequencyCount > 0) metaInfo.add("Frequency data: $frequencyCount entries")
+                if (pitchAccentCount > 0) metaInfo.add("Pitch accent data: $pitchAccentCount entries")
+                
+                updatedDescription += "[${metaInfo.joinToString(", ")}]"
+            }
             
             val updatedMetadata = metadataEntity.copy(
                 id = dictionaryId,
                 entryCount = finalEntryCount,
-                description = if (isFrequencyOnlyDict) {
-                    "${metadataEntity.description} [Frequency data only: ${frequencyCount} entries]"
-                } else {
-                    metadataEntity.description
-                }
+                description = updatedDescription
             )
             dictionaryRepository.saveDictionaryMetadata(updatedMetadata)
             
             if (isFrequencyOnlyDict) {
-                Log.d(TAG, "Saved frequency-only dictionary with ${frequencyCount} frequency entries")
+                Log.d(TAG, "Saved meta-only dictionary with ${pitchAccentCount} pitch accent and ${frequencyCount} frequency entries")
             }
             
             // Verify the entry count after update
@@ -429,7 +552,7 @@ class ParserViewModel private constructor() {
             Log.d(TAG, "VERIFY: Dictionary $dictionaryId has $verifyEntryCount2 entries before returning from importYomitanDictionary")
             
             Log.d(TAG, "Import complete. Successfully imported $successfulEntryCount out of $totalEntryCount entries")
-            return Pair(successfulEntryCount > 0, dictionaryId)
+            return Pair(successfulEntryCount > 0 || frequencyCount > 0 || pitchAccentCount > 0, dictionaryId)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error importing dictionary", e)

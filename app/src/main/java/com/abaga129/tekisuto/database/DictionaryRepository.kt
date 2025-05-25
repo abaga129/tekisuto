@@ -122,6 +122,15 @@ class DictionaryRepository(private val context: Context) {
 
     suspend fun importWordFrequencies(entries: List<WordFrequencyEntity>): Int =
         wordFrequencyRepo.importWordFrequencies(entries)
+        
+    // WordPitchAccentRepository delegates
+    private val wordPitchAccentRepo = WordPitchAccentRepository.getInstance(context)
+
+    suspend fun getPitchAccentForWordAndReading(word: String, reading: String): WordPitchAccentEntity? =
+        wordPitchAccentRepo.getPitchAccentForWordAndReading(word, reading)
+
+    suspend fun importWordPitchAccents(entries: List<WordPitchAccentEntity>): Int =
+        wordPitchAccentRepo.importWordPitchAccents(entries)
 
     /**
      * Clears all dictionary entries and metadata

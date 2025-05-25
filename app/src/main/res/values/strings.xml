@@ -121,6 +121,11 @@
     
     <!-- Dictionary Entry Display -->
     <string name="frequency_info">Frequency: #%1$d</string>
+    <string name="pitch_accent_info">Pitch Accent: %1$s</string>
+    <string name="pitch_accent_heiban">平板型 (heiban) [0]</string>
+    <string name="pitch_accent_atamadaka">頭高型 (atamadaka) [1]</string>
+    <string name="pitch_accent_nakadaka">中高型 (nakadaka) [%1$d]</string>
+    <string name="pitch_accent_odaka">尾高型 (odaka) [%1$d]</string>
     
     <!-- AnkiDroid Integration -->
     <string name="anki_config_title">AnkiDroid Integration Setup</string>
@@ -142,6 +147,7 @@
     <string name="reading_field">Reading Field:</string>
     <string name="definition_field">Definition Field (Required):</string>
     <string name="part_of_speech_field">Part of Speech Field:</string>
+    <string name="pitch_accent_field">Pitch Accent Field:</string>
     <string name="context_field">Context Field (OCR Text):</string>
     <string name="screenshot_field">Screenshot Field:</string>
     <string name="save_config">Save Configuration</string>
@@ -177,6 +183,7 @@
     <string name="dictionary_priority_format">Priority: %1$d</string>
     <string name="dictionary_entry_count">Entries: %1$d</string>
     <string name="dictionary_frequency_count">Frequency Entries: %1$d</string>
+    <string name="dictionary_pitch_accent_count">Pitch Accent Entries: %1$d</string>
     <string name="dictionary_author">Author: %1$s</string>
     <string name="dictionary_languages">Languages: %1$s → %2$s</string>
     <string name="dictionary_priority_updated">Dictionary priority updated</string>
@@ -305,4 +312,8 @@
     <string name="no_apps_whitelisted">No apps selected for whitelist</string>
     <string name="search_apps">Search apps</string>
     <string name="apps_whitelisted_count">%1$d app(s) selected</string>
+    
+    <!-- Pitch Accent -->
+    <string name="pitch_accent_title">Pitch Accent</string>
+    <string name="no_pitch_accent_data">No pitch accent data available</string>
 </resources>

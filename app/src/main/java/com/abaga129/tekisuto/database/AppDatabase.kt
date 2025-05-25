@@ -19,9 +19,10 @@ import com.abaga129.tekisuto.database.ExportedWordEntity
         ExportedWordEntity::class,
         ProfileEntity::class,
         ProfileDictionaryEntity::class,
-        WordFrequencyEntity::class
+        WordFrequencyEntity::class,
+        WordPitchAccentEntity::class
     ], 
-    version = 13
+    version = 15
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun profileDictionaryDao(): ProfileDictionaryDao
     abstract fun wordFrequencyDao(): WordFrequencyDao
+    abstract fun wordPitchAccentDao(): WordPitchAccentDao
     
     companion object {
         /**
@@ -42,7 +44,11 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 "tekisuto_dictionary${com.abaga129.tekisuto.BuildConfig.DB_NAME_SUFFIX}.db"
             )
-            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .addMigrations(
+                MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, 
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, 
+                MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
+            )
             .fallbackToDestructiveMigration()
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .build()

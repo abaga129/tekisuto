@@ -39,6 +39,7 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
     private lateinit var partOfSpeechFieldSpinner: Spinner
     private lateinit var translationFieldSpinner: Spinner
     private lateinit var audioFieldSpinner: Spinner
+    private lateinit var pitchAccentFieldSpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var testButton: Button
     private lateinit var importAnkiPackageButton: Button
@@ -139,6 +140,7 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
         partOfSpeechFieldSpinner = findViewById(R.id.part_of_speech_field_spinner)
         translationFieldSpinner = findViewById(R.id.translation_field_spinner)
         audioFieldSpinner = findViewById(R.id.audio_field_spinner)
+        pitchAccentFieldSpinner = findViewById(R.id.pitch_accent_field_spinner)
         saveButton = findViewById(R.id.save_config_button)
         testButton = findViewById(R.id.test_anki_button)
         importAnkiPackageButton = findViewById(R.id.import_anki_package_button)
@@ -190,6 +192,8 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
         contextFieldSpinner.isEnabled = false
         partOfSpeechFieldSpinner.isEnabled = false
         translationFieldSpinner.isEnabled = false
+        audioFieldSpinner.isEnabled = false
+        pitchAccentFieldSpinner.isEnabled = false
         saveButton.isEnabled = false
         testButton.isEnabled = false
         // We still allow importing from .apkg files even if AnkiDroid is not installed
@@ -345,6 +349,12 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
                     if (fieldMappings.audio >= 0 && fieldMappings.audio < fields.size) {
                         audioFieldSpinner.setSelection(fieldMappings.audio + 1)
                     }
+                    
+                    // Set pitch accent field if available
+                    val profile = profileViewModel.currentProfile.value
+                    if (profile != null && profile.ankiFieldPitchAccent >= 0 && profile.ankiFieldPitchAccent < fields.size) {
+                        pitchAccentFieldSpinner.setSelection(profile.ankiFieldPitchAccent + 1)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -375,6 +385,7 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
         partOfSpeechFieldSpinner.adapter = adapter
         translationFieldSpinner.adapter = adapter
         audioFieldSpinner.adapter = adapter
+        pitchAccentFieldSpinner.adapter = adapter
     }
     
     private fun saveConfiguration() {
@@ -397,6 +408,7 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
         val partOfSpeechField = partOfSpeechFieldSpinner.selectedItemPosition - 1
         val translationField = translationFieldSpinner.selectedItemPosition - 1
         val audioField = audioFieldSpinner.selectedItemPosition - 1
+        val pitchAccentField = pitchAccentFieldSpinner.selectedItemPosition - 1
         
         // Validate that at least word and definition fields are selected
         if (wordField < 0) {
@@ -420,7 +432,8 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
             contextField,
             partOfSpeechField,
             translationField,
-            audioField
+            audioField,
+            pitchAccentField
         )
         
         // Save configuration to current profile
@@ -436,7 +449,8 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
                 ankiFieldContext = contextField,
                 ankiFieldPartOfSpeech = partOfSpeechField,
                 ankiFieldTranslation = translationField,
-                ankiFieldAudio = audioField
+                ankiFieldAudio = audioField,
+                ankiFieldPitchAccent = pitchAccentField
             )
             
             // Update the profile in the database
@@ -458,8 +472,14 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
         
         lifecycleScope.launch {
             try {
+                // Get the pitch accent field
+                val pitchAccentField = pitchAccentFieldSpinner.selectedItemPosition - 1
+                
                 // Create test note
                 val success = withContext(Dispatchers.IO) {
+                    // Add the pitch accent parameter to the test note
+                    val pitchAccentText = if (pitchAccentField >= 0) "平板型 (heiban) [0]" else null
+                    
                     ankiDroidHelper.addNoteToAnkiDroid(
                         "テスト",
                         "てすと",
@@ -468,7 +488,8 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
                         "This is a test export from Tekisuto app.",
                         null,
                         "Test (Translation)",
-                        null  // audio path is null for test
+                        null,  // audio path is null for test
+                        pitchAccentText
                     )
                 }
                 

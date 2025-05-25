@@ -45,7 +45,8 @@ data class ProfileEntity(
     val ankiFieldContext: Int = -1,
     val ankiFieldPartOfSpeech: Int = -1,
     val ankiFieldTranslation: Int = -1,
-    val ankiFieldAudio: Int = -1
+    val ankiFieldAudio: Int = -1,
+    val ankiFieldPitchAccent: Int = -1
 )
 
 /**
@@ -148,6 +149,9 @@ interface ProfileDao {
     @androidx.room.Query("UPDATE profiles SET ankiFieldAudio = :field WHERE id = :id")
     suspend fun updateAnkiFieldAudio(id: Long, field: Int)
     
+    @androidx.room.Query("UPDATE profiles SET ankiFieldPitchAccent = :field WHERE id = :id")
+    suspend fun updateAnkiFieldPitchAccent(id: Long, field: Int)
+    
     @androidx.room.Query("""UPDATE profiles SET 
         ankiDeckId = :deckId, 
         ankiModelId = :modelId, 
@@ -158,7 +162,8 @@ interface ProfileDao {
         ankiFieldContext = :fieldContext, 
         ankiFieldPartOfSpeech = :fieldPartOfSpeech, 
         ankiFieldTranslation = :fieldTranslation, 
-        ankiFieldAudio = :fieldAudio 
+        ankiFieldAudio = :fieldAudio,
+        ankiFieldPitchAccent = :fieldPitchAccent
         WHERE id = :id""")
     suspend fun updateAnkiConfiguration(
         id: Long, 
@@ -171,7 +176,8 @@ interface ProfileDao {
         fieldContext: Int, 
         fieldPartOfSpeech: Int, 
         fieldTranslation: Int, 
-        fieldAudio: Int
+        fieldAudio: Int,
+        fieldPitchAccent: Int = -1
     )
     
     // Update all profile settings at once

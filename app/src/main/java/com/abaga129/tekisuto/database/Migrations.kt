@@ -1,6 +1,7 @@
 package com.abaga129.tekisuto.database
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -302,6 +303,147 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
             database.execSQL("ALTER TABLE dictionary_entries_new RENAME TO dictionary_entries")
         } catch (e: Exception) {
             // If the query fails, the frequency column doesn't exist, which is good
+        }
+    }
+}
+
+/**
+ * Migration from version 13 to 14 - adds word_pitch_accents table and pitch accent field to profiles
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Create the word_pitch_accents table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS word_pitch_accents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                dictionaryId INTEGER NOT NULL,
+                word TEXT NOT NULL,
+                reading TEXT NOT NULL,
+                pitchAccent TEXT NOT NULL,
+                FOREIGN KEY(dictionaryId) REFERENCES dictionary_metadata(id) ON DELETE CASCADE
+            )
+        """)
+
+        // Create indices for faster lookups
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_dictionaryId ON word_pitch_accents(dictionaryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_word ON word_pitch_accents(word)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_reading ON word_pitch_accents(reading)")
+        
+        try {
+            // Check if the ankiFieldPitchAccent column already exists
+            database.execSQL("SELECT ankiFieldPitchAccent FROM profiles LIMIT 1")
+            Log.d("Migration", "ankiFieldPitchAccent column already exists")
+        } catch (e: Exception) {
+            // If the column doesn't exist, add it
+            Log.d("Migration", "Adding ankiFieldPitchAccent column to profiles table")
+            try {
+                database.execSQL("""
+                    ALTER TABLE profiles ADD COLUMN ankiFieldPitchAccent INTEGER NOT NULL DEFAULT -1
+                """)
+            } catch (e2: Exception) {
+                // If we get an error trying to add the column, it might be because it was already added
+                // by a concurrent process or a previously interrupted migration
+                Log.e("Migration", "Error adding ankiFieldPitchAccent column: ${e2.message}")
+                // Continue with migration regardless of this error
+            }
+        }
+    }
+}
+
+/**
+ * Migration from version 14 to 15 - ensures word_pitch_accents table has the correct indices
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Make sure ankiFieldPitchAccent column exists in profiles table
+        try {
+            database.execSQL("SELECT ankiFieldPitchAccent FROM profiles LIMIT 1")
+            Log.d("Migration", "ankiFieldPitchAccent column already exists")
+        } catch (e: Exception) {
+            Log.d("Migration", "Adding ankiFieldPitchAccent column to profiles table")
+            try {
+                database.execSQL("""
+                    ALTER TABLE profiles ADD COLUMN ankiFieldPitchAccent INTEGER NOT NULL DEFAULT -1
+                """)
+            } catch (e2: Exception) {
+                // If we get an error trying to add the column, it might be because it was already added
+                // by a concurrent process or a previously interrupted migration
+                Log.e("Migration", "Error adding ankiFieldPitchAccent column: ${e2.message}")
+                // Continue with migration regardless of this error
+            }
+        }
+        
+        // Handle the word_pitch_accents table
+        try {
+            // Backup existing data
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS word_pitch_accents_backup (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dictionaryId INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    reading TEXT NOT NULL,
+                    pitchAccent TEXT NOT NULL
+                )
+            """)
+            
+            database.execSQL("""
+                INSERT INTO word_pitch_accents_backup 
+                SELECT id, dictionaryId, word, reading, pitchAccent 
+                FROM word_pitch_accents
+            """)
+            
+            // Drop existing table and recreate with correct schema
+            database.execSQL("DROP TABLE IF EXISTS word_pitch_accents")
+            
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS word_pitch_accents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dictionaryId INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    reading TEXT NOT NULL,
+                    pitchAccent TEXT NOT NULL,
+                    FOREIGN KEY(dictionaryId) REFERENCES dictionary_metadata(id) ON DELETE CASCADE
+                )
+            """)
+            
+            // Add all required indices
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_dictionaryId ON word_pitch_accents(dictionaryId)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_word ON word_pitch_accents(word)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_reading ON word_pitch_accents(reading)")
+            
+            // Restore data from backup
+            database.execSQL("""
+                INSERT INTO word_pitch_accents 
+                SELECT id, dictionaryId, word, reading, pitchAccent 
+                FROM word_pitch_accents_backup
+            """)
+            
+            // Drop backup table
+            database.execSQL("DROP TABLE IF EXISTS word_pitch_accents_backup")
+            
+            Log.d("Migration", "Successfully recreated word_pitch_accents table with correct indices")
+            
+        } catch (e: Exception) {
+            Log.e("Migration", "Error fixing word_pitch_accents table: ${e.message}", e)
+            
+            // If there was an error, make sure to create the table from scratch
+            database.execSQL("DROP TABLE IF EXISTS word_pitch_accents")
+            
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS word_pitch_accents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dictionaryId INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    reading TEXT NOT NULL,
+                    pitchAccent TEXT NOT NULL,
+                    FOREIGN KEY(dictionaryId) REFERENCES dictionary_metadata(id) ON DELETE CASCADE
+                )
+            """)
+            
+            // Add all required indices
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_dictionaryId ON word_pitch_accents(dictionaryId)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_word ON word_pitch_accents(word)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_pitch_accents_reading ON word_pitch_accents(reading)")
         }
     }
 }

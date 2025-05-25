@@ -81,6 +81,26 @@ class AnkiExportManager(
                     }
                 }
 
+                // Try to get pitch accent for the word if it's Japanese
+                var pitchAccent: String? = null
+                if (language == "ja" || language == "jpn" || language == "japanese") {
+                    try {
+                        val dictionaryRepository = ankiDroidHelper.getDictionaryRepository()
+                        val pitchAccentEntity = withContext(Dispatchers.IO) {
+                            dictionaryRepository.getPitchAccentForWordAndReading(entry.term, entry.reading)
+                        }
+                        pitchAccent = pitchAccentEntity?.pitchAccent
+                        if (pitchAccent != null) {
+                            Log.d(TAG, "Found pitch accent for ${entry.term}: $pitchAccent")
+                        }
+                        else {
+                            Log.d(TAG, "No pitch accent found for ${entry.term}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error getting pitch accent", e)
+                    }
+                }
+
                 val success = withContext(Dispatchers.IO) {
                     ankiDroidHelper.addNoteToAnkiDroid(
                         word = entry.term,
@@ -90,7 +110,8 @@ class AnkiExportManager(
                         context = ocrText ?: "",
                         screenshotPath = screenshotPath,
                         translation = translatedText ?: "",
-                        audioPath = audioFilePath
+                        audioPath = audioFilePath,
+                        pitchAccent = pitchAccent
                     )
                 }
 
