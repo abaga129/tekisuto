@@ -43,8 +43,6 @@
             android:defaultValue="mlkit"
             app:iconSpaceReserved="false"
             app:useSimpleSummaryProvider="true" />
-            
-        <!-- Removed Cloud OCR API Key preference -->
 
         <ListPreference
             android:key="ocr_language"
@@ -135,6 +133,54 @@
             android:dependency="enable_audio"
             app:iconSpaceReserved="false" />
             
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Pitch Accent Export"
+        app:iconSpaceReserved="false">
+        
+        <ListPreference
+            android:key="pitch_export_format"
+            android:title="Export Format"
+            android:summary="Choose how pitch accent data is formatted for AnkiDroid"
+            android:entries="@array/pitch_export_format_entries"
+            android:entryValues="@array/pitch_export_format_values"
+            android:defaultValue="HTML_FORMATTED"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_pattern_type"
+            android:title="Include Pattern Type"
+            android:summary="Add Japanese pattern type names (平板型, 頭高型, etc.)"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_visual_graph"
+            android:title="Include Visual Graph"
+            android:summary="Export with SVG pitch accent graph"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_reading"
+            android:title="Include Reading"
+            android:summary="Show reading (hiragana/katakana) with pitch accent"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <ListPreference
+            android:key="pitch_graph_style"
+            android:title="Graph Style"
+            android:summary="Visual style for pitch accent graphs"
+            android:entries="@array/pitch_graph_style_entries"
+            android:entryValues="@array/pitch_graph_style_values"
+            android:defaultValue="DOTS_AND_LINES"
+            android:dependency="pitch_include_visual_graph"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+        
     </PreferenceCategory>
 
     <PreferenceCategory

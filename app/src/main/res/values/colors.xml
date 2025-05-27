@@ -55,6 +55,9 @@
     <color name="accent_drop_color">#E53935</color>      <!-- Red for pitch drops (↓) -->
     <color name="accent_rise_color">#2196F3</color>      <!-- Blue for pitch rises (↑) -->
     <color name="pitch_accent_background">#F0F4F7</color><!-- Light background for pitch accent -->
+    <color name="pitch_high">#4F7F98</color>             <!-- Primary color for high pitch -->
+    <color name="pitch_low">#90A4AE</color>              <!-- Gray for low pitch -->
+    <color name="pitch_connector">#B0BEC5</color>        <!-- Light gray for connecting lines -->
     
     <!-- Voice selection dialog -->
     <color name="headerBackground">#F0F4F7</color>        <!-- Light blue-gray for headers -->

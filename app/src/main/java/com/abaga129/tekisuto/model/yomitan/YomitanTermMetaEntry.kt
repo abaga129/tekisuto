@@ -23,6 +23,13 @@ import com.abaga129.tekisuto.database.WordFrequencyEntity
  * [0] - Term (string)
  * [1] - Type (string, usually "freq" for frequency)
  * [2] - Frequency value (either number or object with "value" property)
+ *
+ * Format 3 (enhanced frequency with reading):
+ * [0] - Term (string)
+ * [1] - Type (string, usually "freq" for frequency)
+ * [2] - Object containing:
+ *       - reading (string, e.g. "いちども")
+ *       - frequency (object with "value" and optionally "displayValue")
  */
 class YomitanTermMetaEntry {
     companion object {
@@ -43,22 +50,75 @@ class YomitanTermMetaEntry {
             val isFrequencyFormat = jsonArray.size >= 3 && jsonArray.getOrNull(1) == "freq"
             
             var frequency: Int? = null
+            var reading: String? = null
+            var displayValue: String? = null
             
             if (isFrequencyFormat) {
-                // Handle Format 2: [term, "freq", frequencyValue]
+                // Handle Format 2 and 3: [term, "freq", frequencyData]
                 val freqData = jsonArray.getOrNull(2)
-                frequency = when(freqData) {
-                    is Int -> freqData
-                    is Number -> freqData.toInt()
-                    is String -> freqData.toIntOrNull()
+                
+                when (freqData) {
+                    is Int -> {
+                        // Simple integer frequency
+                        frequency = freqData
+                    }
+                    is Number -> {
+                        // Numeric frequency
+                        frequency = freqData.toInt()
+                    }
+                    is String -> {
+                        // String frequency
+                        frequency = freqData.toIntOrNull()
+                    }
                     is Map<*, *> -> {
-                        // Handle case where frequency is a JSON object with a "value" property
-                        val value = freqData["value"]
-                        when(value) {
-                            is Int -> value
-                            is Number -> value.toInt()
-                            is String -> value.toIntOrNull()
-                            else -> null
+                        // Handle enhanced frequency format with reading
+                        // Check if this is Format 3 with reading
+                        val readingValue = freqData["reading"] as? String
+                        if (readingValue != null) {
+                            reading = readingValue
+                        }
+                        
+                        // Extract frequency information
+                        val frequencyInfo = freqData["frequency"]
+                        when (frequencyInfo) {
+                            is Int -> {
+                                frequency = frequencyInfo
+                            }
+                            is Number -> {
+                                frequency = frequencyInfo.toInt()
+                            }
+                            is Map<*, *> -> {
+                                // Complex frequency object with value and displayValue
+                                val value = frequencyInfo["value"]
+                                frequency = when (value) {
+                                    is Int -> value
+                                    is Number -> value.toInt()
+                                    is String -> value.toIntOrNull()
+                                    else -> null
+                                }
+                                
+                                // Extract displayValue if available
+                                val displayVal = frequencyInfo["displayValue"] as? String
+                                if (displayVal != null) {
+                                    displayValue = displayVal
+                                }
+                            }
+                            else -> {
+                                // Fallback: try to parse frequency directly from the map
+                                val value = freqData["value"]
+                                frequency = when (value) {
+                                    is Int -> value
+                                    is Number -> value.toInt()
+                                    is String -> value.toIntOrNull()
+                                    else -> null
+                                }
+                                
+                                // Try to get displayValue directly from freqData
+                                val displayVal = freqData["displayValue"] as? String
+                                if (displayVal != null) {
+                                    displayValue = displayVal
+                                }
+                            }
                         }
                     }
                     else -> null
@@ -66,7 +126,7 @@ class YomitanTermMetaEntry {
                 
                 // Log a sample of the parsed frequency data for debugging
                 if (frequency != null) {
-                    Log.d(TAG, "Parsed frequency $frequency for term: $term (Format 2)")
+                    Log.d(TAG, "Parsed frequency $frequency for term: $term (Format 2/3), reading: $reading, displayValue: $displayValue")
                 }
             } else {
                 // Handle Format 1 (traditional format)
@@ -85,9 +145,15 @@ class YomitanTermMetaEntry {
                     frequency = extractFrequencyFromTags(tags)
                 }
                 
+                // For Format 1, reading might be at position 1
+                val readingValue = jsonArray.getOrNull(1) as? String
+                if (!readingValue.isNullOrBlank()) {
+                    reading = readingValue
+                }
+                
                 // Log a sample of the parsed frequency data for debugging
                 if (frequency != null) {
-                    Log.d(TAG, "Parsed frequency $frequency for term: $term (Format 1)")
+                    Log.d(TAG, "Parsed frequency $frequency for term: $term (Format 1), reading: $reading")
                 }
             }
             
@@ -99,7 +165,9 @@ class YomitanTermMetaEntry {
             return WordFrequencyEntity(
                 dictionaryId = dictionaryId,
                 word = term,
-                frequency = frequency
+                reading = reading,
+                frequency = frequency,
+                displayValue = displayValue
             )
         }
         

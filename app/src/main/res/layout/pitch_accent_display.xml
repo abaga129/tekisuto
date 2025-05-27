@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/pitch_accent_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="4dp"
+    android:orientation="vertical"
+    android:background="@drawable/pitch_accent_background"
+    android:padding="8dp">
+
+    <!-- Reading with pitch accent notation -->
+    <TextView
+        android:id="@+id/pitch_accent_reading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textStyle="bold"
+
+        android:textColor="?attr/colorOnSurface"
+        android:layout_gravity="center_horizontal"
+        tools:text="か↓れー" />
+
+    <!-- Visual pitch graph container -->
+    <LinearLayout
+        android:id="@+id/pitch_graph_container"
+        android:layout_width="wrap_content"
+        android:layout_height="24dp"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:gravity="bottom|center_horizontal"
+        android:layout_gravity="center_horizontal">
+        
+        <!-- Pitch dots/lines will be added programmatically -->
+        
+    </LinearLayout>
+
+    <!-- Pattern type indicator (optional) -->
+    <TextView
+        android:id="@+id/pitch_pattern_type"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textSize="10sp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:layout_gravity="center_horizontal"
+        android:visibility="gone"
+        tools:text="[3]" />
+
+</LinearLayout>

@@ -17,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
+import com.abaga129.tekisuto.util.PitchAccentExportHelper
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -475,17 +476,23 @@ class AnkiDroidConfigActivity : BaseEdgeToEdgeActivity() {
                 // Get the pitch accent field
                 val pitchAccentField = pitchAccentFieldSpinner.selectedItemPosition - 1
                 
-                // Create test note
+                // Create test note with enhanced pitch accent
                 val success = withContext(Dispatchers.IO) {
-                    // Add the pitch accent parameter to the test note
-                    val pitchAccentText = if (pitchAccentField >= 0) "平板型 (heiban) [0]" else null
+                    // Generate enhanced pitch accent text for test
+                    val pitchAccentText = if (pitchAccentField >= 0) {
+                        PitchAccentExportHelper.generatePitchAccentForExport(
+                            this@AnkiDroidConfigActivity,
+                            "てすと",
+                            "0"
+                        ) ?: "平板型 [0] (てすと)"
+                    } else null
                     
                     ankiDroidHelper.addNoteToAnkiDroid(
                         "テスト",
                         "てすと",
-                        "Test word from Tekisuto",
+                        "Test word from Tekisuto with enhanced pitch accent formatting",
                         "Test",
-                        "This is a test export from Tekisuto app.",
+                        "This is a test export from Tekisuto app showing enhanced pitch accent features.",
                         null,
                         "Test (Translation)",
                         null,  // audio path is null for test

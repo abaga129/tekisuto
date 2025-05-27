@@ -1,0 +1,673 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 16,
+    "identityHash": "2edabb7b875eaf09ea4e794262cee158",
+    "entities": [
+      {
+        "tableName": "dictionary_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dictionaryId` INTEGER NOT NULL, `term` TEXT NOT NULL, `reading` TEXT NOT NULL, `definition` TEXT NOT NULL, `partOfSpeech` TEXT NOT NULL, `tags` TEXT NOT NULL, `isHtmlContent` INTEGER NOT NULL, FOREIGN KEY(`dictionaryId`) REFERENCES `dictionary_metadata`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryId",
+            "columnName": "dictionaryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "term",
+            "columnName": "term",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reading",
+            "columnName": "reading",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "definition",
+            "columnName": "definition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "partOfSpeech",
+            "columnName": "partOfSpeech",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isHtmlContent",
+            "columnName": "isHtmlContent",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_dictionary_entries_dictionaryId",
+            "unique": false,
+            "columnNames": [
+              "dictionaryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dictionary_entries_dictionaryId` ON `${TABLE_NAME}` (`dictionaryId`)"
+          },
+          {
+            "name": "index_dictionary_entries_term",
+            "unique": false,
+            "columnNames": [
+              "term"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dictionary_entries_term` ON `${TABLE_NAME}` (`term`)"
+          },
+          {
+            "name": "index_dictionary_entries_reading",
+            "unique": false,
+            "columnNames": [
+              "reading"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dictionary_entries_reading` ON `${TABLE_NAME}` (`reading`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "dictionary_metadata",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dictionaryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "dictionary_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `description` TEXT NOT NULL, `sourceLanguage` TEXT NOT NULL, `targetLanguage` TEXT NOT NULL, `entryCount` INTEGER NOT NULL, `priority` INTEGER NOT NULL, `importDate` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceLanguage",
+            "columnName": "sourceLanguage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetLanguage",
+            "columnName": "targetLanguage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entryCount",
+            "columnName": "entryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importDate",
+            "columnName": "importDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "exported_words",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `word` TEXT NOT NULL, `dictionaryId` INTEGER NOT NULL, `ankiDeckId` INTEGER NOT NULL, `ankiNoteId` INTEGER, `dateAdded` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "word",
+            "columnName": "word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryId",
+            "columnName": "dictionaryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiDeckId",
+            "columnName": "ankiDeckId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiNoteId",
+            "columnName": "ankiNoteId",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "dateAdded",
+            "columnName": "dateAdded",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_exported_words_word",
+            "unique": false,
+            "columnNames": [
+              "word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exported_words_word` ON `${TABLE_NAME}` (`word`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `isDefault` INTEGER NOT NULL, `createdDate` INTEGER NOT NULL, `lastUsedDate` INTEGER NOT NULL, `ocrService` TEXT NOT NULL, `ocrLanguage` TEXT NOT NULL, `translateOcrText` INTEGER NOT NULL, `translateTargetLanguage` TEXT NOT NULL, `cloudOcrApiKey` TEXT NOT NULL, `enableLongPressCapture` INTEGER NOT NULL, `longPressDuration` INTEGER NOT NULL, `enableAudio` INTEGER NOT NULL, `azureSpeechKey` TEXT NOT NULL, `azureSpeechRegion` TEXT NOT NULL, `voiceSelection` TEXT NOT NULL, `ankiDeckId` INTEGER NOT NULL, `ankiModelId` INTEGER NOT NULL, `ankiFieldWord` INTEGER NOT NULL, `ankiFieldReading` INTEGER NOT NULL, `ankiFieldDefinition` INTEGER NOT NULL, `ankiFieldScreenshot` INTEGER NOT NULL, `ankiFieldContext` INTEGER NOT NULL, `ankiFieldPartOfSpeech` INTEGER NOT NULL, `ankiFieldTranslation` INTEGER NOT NULL, `ankiFieldAudio` INTEGER NOT NULL, `ankiFieldPitchAccent` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDefault",
+            "columnName": "isDefault",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDate",
+            "columnName": "createdDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsedDate",
+            "columnName": "lastUsedDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ocrService",
+            "columnName": "ocrService",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ocrLanguage",
+            "columnName": "ocrLanguage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "translateOcrText",
+            "columnName": "translateOcrText",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "translateTargetLanguage",
+            "columnName": "translateTargetLanguage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cloudOcrApiKey",
+            "columnName": "cloudOcrApiKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableLongPressCapture",
+            "columnName": "enableLongPressCapture",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longPressDuration",
+            "columnName": "longPressDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableAudio",
+            "columnName": "enableAudio",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "azureSpeechKey",
+            "columnName": "azureSpeechKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "azureSpeechRegion",
+            "columnName": "azureSpeechRegion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "voiceSelection",
+            "columnName": "voiceSelection",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiDeckId",
+            "columnName": "ankiDeckId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiModelId",
+            "columnName": "ankiModelId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldWord",
+            "columnName": "ankiFieldWord",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldReading",
+            "columnName": "ankiFieldReading",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldDefinition",
+            "columnName": "ankiFieldDefinition",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldScreenshot",
+            "columnName": "ankiFieldScreenshot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldContext",
+            "columnName": "ankiFieldContext",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldPartOfSpeech",
+            "columnName": "ankiFieldPartOfSpeech",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldTranslation",
+            "columnName": "ankiFieldTranslation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldAudio",
+            "columnName": "ankiFieldAudio",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ankiFieldPitchAccent",
+            "columnName": "ankiFieldPitchAccent",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "profile_dictionaries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profileId` INTEGER NOT NULL, `dictionaryId` INTEGER NOT NULL, PRIMARY KEY(`profileId`, `dictionaryId`), FOREIGN KEY(`profileId`) REFERENCES `profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`dictionaryId`) REFERENCES `dictionary_metadata`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryId",
+            "columnName": "dictionaryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profileId",
+            "dictionaryId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_profile_dictionaries_profileId",
+            "unique": false,
+            "columnNames": [
+              "profileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_profile_dictionaries_profileId` ON `${TABLE_NAME}` (`profileId`)"
+          },
+          {
+            "name": "index_profile_dictionaries_dictionaryId",
+            "unique": false,
+            "columnNames": [
+              "dictionaryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_profile_dictionaries_dictionaryId` ON `${TABLE_NAME}` (`dictionaryId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "dictionary_metadata",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dictionaryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "word_frequencies",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dictionaryId` INTEGER NOT NULL, `word` TEXT NOT NULL, `reading` TEXT, `frequency` INTEGER NOT NULL, `displayValue` TEXT, FOREIGN KEY(`dictionaryId`) REFERENCES `dictionary_metadata`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryId",
+            "columnName": "dictionaryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "word",
+            "columnName": "word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reading",
+            "columnName": "reading",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "frequency",
+            "columnName": "frequency",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayValue",
+            "columnName": "displayValue",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_word_frequencies_dictionaryId",
+            "unique": false,
+            "columnNames": [
+              "dictionaryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_frequencies_dictionaryId` ON `${TABLE_NAME}` (`dictionaryId`)"
+          },
+          {
+            "name": "index_word_frequencies_word",
+            "unique": false,
+            "columnNames": [
+              "word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_frequencies_word` ON `${TABLE_NAME}` (`word`)"
+          },
+          {
+            "name": "index_word_frequencies_reading",
+            "unique": false,
+            "columnNames": [
+              "reading"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_frequencies_reading` ON `${TABLE_NAME}` (`reading`)"
+          },
+          {
+            "name": "index_word_frequencies_word_reading",
+            "unique": false,
+            "columnNames": [
+              "word",
+              "reading"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_frequencies_word_reading` ON `${TABLE_NAME}` (`word`, `reading`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "dictionary_metadata",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dictionaryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "word_pitch_accents",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dictionaryId` INTEGER NOT NULL, `word` TEXT NOT NULL, `reading` TEXT NOT NULL, `pitchAccent` TEXT NOT NULL, FOREIGN KEY(`dictionaryId`) REFERENCES `dictionary_metadata`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryId",
+            "columnName": "dictionaryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "word",
+            "columnName": "word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reading",
+            "columnName": "reading",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pitchAccent",
+            "columnName": "pitchAccent",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_word_pitch_accents_dictionaryId",
+            "unique": false,
+            "columnNames": [
+              "dictionaryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_pitch_accents_dictionaryId` ON `${TABLE_NAME}` (`dictionaryId`)"
+          },
+          {
+            "name": "index_word_pitch_accents_word",
+            "unique": false,
+            "columnNames": [
+              "word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_pitch_accents_word` ON `${TABLE_NAME}` (`word`)"
+          },
+          {
+            "name": "index_word_pitch_accents_reading",
+            "unique": false,
+            "columnNames": [
+              "reading"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_word_pitch_accents_reading` ON `${TABLE_NAME}` (`reading`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "dictionary_metadata",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dictionaryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2edabb7b875eaf09ea4e794262cee158')"
+    ]
+  }
+}

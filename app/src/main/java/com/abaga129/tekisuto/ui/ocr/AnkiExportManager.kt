@@ -10,6 +10,7 @@ import com.abaga129.tekisuto.R
 import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.util.AnkiDroidHelper
+import com.abaga129.tekisuto.util.PitchAccentExportHelper
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,7 +18,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Manages exporting dictionary entries to AnkiDroid
+ * Manages exporting dictionary entries to AnkiDroid with enhanced pitch accent support
  */
 class AnkiExportManager(
     private val context: Context,
@@ -29,7 +30,7 @@ class AnkiExportManager(
     private val TAG = "AnkiExportManager"
     
     /**
-     * Export a dictionary entry to AnkiDroid
+     * Export a dictionary entry to AnkiDroid with enhanced formatting
      * 
      * @param entry The dictionary entry to export
      * @param ocrText The full OCR text for context
@@ -81,7 +82,8 @@ class AnkiExportManager(
                     }
                 }
 
-                // Try to get pitch accent for the word if it's Japanese
+                // Try to get pitch accent for the word if it's Japanese with enhanced formatting
+                // Pitch accent export is now always enabled when data is available
                 var pitchAccent: String? = null
                 if (language == "ja" || language == "jpn" || language == "japanese") {
                     try {
@@ -89,11 +91,18 @@ class AnkiExportManager(
                         val pitchAccentEntity = withContext(Dispatchers.IO) {
                             dictionaryRepository.getPitchAccentForWordAndReading(entry.term, entry.reading)
                         }
-                        pitchAccent = pitchAccentEntity?.pitchAccent
-                        if (pitchAccent != null) {
-                            Log.d(TAG, "Found pitch accent for ${entry.term}: $pitchAccent")
-                        }
-                        else {
+                        
+                        // Enhanced pitch accent formatting using PitchAccentExportHelper
+                        // Always generate enhanced pitch accent when data is available
+                        if (pitchAccentEntity != null) {
+                            pitchAccent = PitchAccentExportHelper.generatePitchAccentForExport(
+                                context,
+                                entry.reading,
+                                pitchAccentEntity.pitchAccent
+                            )
+                            
+                            Log.d(TAG, "Generated enhanced pitch accent for ${entry.term}: $pitchAccent")
+                        } else {
                             Log.d(TAG, "No pitch accent found for ${entry.term}")
                         }
                     } catch (e: Exception) {
@@ -116,7 +125,13 @@ class AnkiExportManager(
                 }
 
                 if (success) {
-                    Toast.makeText(context, R.string.export_success, Toast.LENGTH_SHORT).show()
+                    // Show success message with pitch accent info if applicable
+                    val message = if (pitchAccent != null) {
+                        context.getString(R.string.export_success) + " (pitch accent included)"
+                    } else {
+                        context.getString(R.string.export_success)
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, R.string.export_failed, Toast.LENGTH_SHORT).show()
                 }
@@ -130,4 +145,6 @@ class AnkiExportManager(
             }
         }
     }
+    
+
 }

@@ -316,4 +316,31 @@
     <!-- Pitch Accent -->
     <string name="pitch_accent_title">Pitch Accent</string>
     <string name="no_pitch_accent_data">No pitch accent data available</string>
+    
+    <!-- Pitch Accent Export Arrays -->
+    <string-array name="pitch_export_format_entries">
+        <item>Plain Text</item>
+        <item>HTML Formatted</item>
+        <item>Visual Graph</item>
+        <item>Yomichan Style</item>
+    </string-array>
+    
+    <string-array name="pitch_export_format_values">
+        <item>PLAIN_TEXT</item>
+        <item>HTML_FORMATTED</item>
+        <item>VISUAL_GRAPH</item>
+        <item>YOMICHAN_STYLE</item>
+    </string-array>
+    
+    <string-array name="pitch_graph_style_entries">
+        <item>Dots and Lines</item>
+        <item>Modern Bars</item>
+        <item>Minimalist</item>
+    </string-array>
+    
+    <string-array name="pitch_graph_style_values">
+        <item>DOTS_AND_LINES</item>
+        <item>MODERN_BARS</item>
+        <item>MINIMALIST</item>
+    </string-array>
 </resources>

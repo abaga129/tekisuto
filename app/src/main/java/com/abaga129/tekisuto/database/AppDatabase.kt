@@ -22,7 +22,7 @@ import com.abaga129.tekisuto.database.ExportedWordEntity
         WordFrequencyEntity::class,
         WordPitchAccentEntity::class
     ], 
-    version = 15
+    version = 16
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -47,7 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
             .addMigrations(
                 MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, 
                 MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, 
-                MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
+                MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16
             )
             .fallbackToDestructiveMigration()
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -55,4 +55,3 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
-

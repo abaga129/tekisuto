@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <PreferenceCategory
+        android:title="Pitch Accent Export"
+        android:key="pitch_accent_category">
+        
+        <ListPreference
+            android:key="pitch_export_format"
+            android:title="Export Format"
+            android:summary="Choose how pitch accent data is formatted for AnkiDroid"
+            android:entries="@array/pitch_export_format_entries"
+            android:entryValues="@array/pitch_export_format_values"
+            android:defaultValue="HTML_FORMATTED" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_pattern_type"
+            android:title="Include Pattern Type"
+            android:summary="Add Japanese pattern type names (平板型, 頭高型, etc.)"
+            android:defaultValue="true" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_visual_graph"
+            android:title="Include Visual Graph"
+            android:summary="Export with SVG pitch accent graph"
+            android:defaultValue="true" />
+        
+        <SwitchPreferenceCompat
+            android:key="pitch_include_reading"
+            android:title="Include Reading"
+            android:summary="Show reading (hiragana/katakana) with pitch accent"
+            android:defaultValue="true" />
+        
+        <ListPreference
+            android:key="pitch_graph_style"
+            android:title="Graph Style"
+            android:summary="Visual style for pitch accent graphs"
+            android:entries="@array/pitch_graph_style_entries"
+            android:entryValues="@array/pitch_graph_style_values"
+            android:defaultValue="DOTS_AND_LINES"
+            android:dependency="pitch_include_visual_graph" />
+        
+    </PreferenceCategory>
+    
+    <PreferenceCategory
+        android:title="Pitch Accent Data"
+        android:key="pitch_data_category">
+        
+        <Preference
+            android:key="pitch_accent_stats"
+            android:title="Pitch Accent Statistics"
+            android:summary="View statistics about available pitch accent data" />
+        
+        <Preference
+            android:key="reimport_pitch_data"
+            android:title="Reimport Pitch Accent Data"
+            android:summary="Reload pitch accent dictionaries from files" />
+        
+    </PreferenceCategory>
+    
+</PreferenceScreen>

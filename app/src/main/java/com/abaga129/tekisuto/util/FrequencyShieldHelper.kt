@@ -26,6 +26,7 @@ class FrequencyShieldHelper {
          * @param frequencyValueView The TextView for the frequency value (right part of shield)
          * @param dictionaryName The name of the dictionary
          * @param frequency The word frequency value
+         * @param displayValue Optional formatted display value (e.g., "67282㋕")
          */
         fun setupFrequencyShield(
             context: Context,
@@ -33,13 +34,15 @@ class FrequencyShieldHelper {
             dictionaryNameView: TextView,
             frequencyValueView: TextView,
             dictionaryName: String,
-            frequency: Int
+            frequency: Int,
+            displayValue: String? = null
         ) {
             // Set the dictionary name (left side of shield)
             dictionaryNameView.text = dictionaryName.lowercase()
             
-            // Set the frequency value (right side of shield)
-            frequencyValueView.text = context.getString(R.string.frequency_shield_common, frequency)
+            // Use displayValue if available, otherwise fall back to frequency
+            val displayText = displayValue ?: context.getString(R.string.frequency_shield_common, frequency)
+            frequencyValueView.text = displayText
             
             // Get the right side background drawable for color changes
             val rightBackground = frequencyValueView.background as? GradientDrawable

@@ -111,6 +111,12 @@ class DictionaryRepository(private val context: Context) {
     suspend fun getFrequencyForWord(word: String): WordFrequencyEntity? =
         wordFrequencyRepo.getFrequencyForWord(word)
 
+    suspend fun getFrequencyForWordAndReading(word: String, reading: String? = null): WordFrequencyEntity? =
+        wordFrequencyRepo.getFrequencyForWordAndReading(word, reading)
+
+    suspend fun getFrequencyForReading(reading: String): WordFrequencyEntity? =
+        wordFrequencyRepo.getFrequencyForReading(reading)
+
     suspend fun getFrequencyForWordInDictionary(word: String, dictionaryId: Long): WordFrequencyEntity? =
         wordFrequencyRepo.getFrequencyForWordInDictionary(word, dictionaryId)
 

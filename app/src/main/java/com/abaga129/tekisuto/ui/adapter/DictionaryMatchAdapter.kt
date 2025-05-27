@@ -34,7 +34,7 @@ import com.abaga129.tekisuto.database.DictionaryEntryEntity
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.util.FrequencyShieldHelper
 import com.abaga129.tekisuto.util.LanguageDetector
-import com.abaga129.tekisuto.util.PitchAccentHelper
+import com.abaga129.tekisuto.util.PitchAccentDisplayHelper
 import com.abaga129.tekisuto.util.SpeechService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -113,8 +113,6 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val termTextView: TextView = itemView.findViewById(R.id.term_text)
         private val readingTextView: TextView = itemView.findViewById(R.id.reading_text)
         private val partOfSpeechTextView: TextView = itemView.findViewById(R.id.part_of_speech_text)
-//        private val frequencyTextView: TextView = itemView.findViewById(R.id.frequency_shield)
-//        private val pitchAccentTextView: TextView? = itemView.findViewById(R.id.pitch_shield)
         private val definitionTextView: TextView = itemView.findViewById(R.id.definition_text)
         private val exportToAnkiButton: ImageButton = itemView.findViewById(R.id.export_to_anki_button)
         private val playAudioButton: ImageButton = itemView.findViewById(R.id.play_audio_button)
@@ -125,10 +123,8 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
         private val dictionaryNameView: TextView? = itemView.findViewById(R.id.shield_dictionary_name)
         private val frequencyValueView: TextView? = itemView.findViewById(R.id.shield_frequency_value)
 
-        // Frequency shield views
-        private val pitchShieldContainer: LinearLayout? = itemView.findViewById(R.id.pitch_shield_container)
-        private val pitchDictionaryNameView: TextView? = itemView.findViewById(R.id.pitch_dictionary_name)
-        private val pitchValueView: TextView? = itemView.findViewById(R.id.pitch_value)
+        // Pitch accent display views
+        private val pitchAccentContainer: LinearLayout? = itemView.findViewById(R.id.pitch_accent_display)
 
         /**
          * Get theme-aware surface color to respect light/dark theme
@@ -206,20 +202,17 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 
                 lifecycleScope.launch {
                     try {
-                        // Try to fetch frequency data for this term in the specific dictionary
-                        var frequencyData = dictionaryRepository.getFrequencyForWordInDictionary(entry.term, entry.dictionaryId)
-                        var dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(entry.dictionaryId)
+                        // Enhanced frequency search with three-tier strategy:
+                        // 1. Search by word and reading (most specific)
+                        // 2. Search by word only  
+                        // 3. Search by reading only
+                        var frequencyData = dictionaryRepository.getFrequencyForWordAndReading(entry.term, entry.reading)
                         
-                        // If not found in specific dictionary, try to find in any dictionary
-                        if (frequencyData == null) {
-                            Log.d("DictionaryAdapter", "No frequency in dictionary ${entry.dictionaryId}, checking all dictionaries...")
-                            frequencyData = dictionaryRepository.getFrequencyForWord(entry.term)
-                            
-                            // If found in another dictionary, get that dictionary's metadata
-                            if (frequencyData != null) {
-                                dictionaryMetadata = dictionaryRepository.getDictionaryMetadata(frequencyData.dictionaryId)
-                                Log.d("DictionaryAdapter", "Found frequency in dictionary ${frequencyData.dictionaryId}: #${frequencyData.frequency}")
-                            }
+                        var dictionaryMetadata = if(frequencyData != null)
+                        {
+                            dictionaryRepository.getDictionaryMetadata(entry.dictionaryId)
+                        } else {
+                            null
                         }
                         
                         // Update UI on the main thread
@@ -235,7 +228,8 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                                     dictionaryNameView,
                                     frequencyValueView,
                                     shortDictionaryName,
-                                    frequencyData.frequency
+                                    frequencyData.frequency,
+                                    frequencyData.displayValue
                                 )
                                 
                                 Log.d("DictionaryAdapter", "Displayed frequency shield for '${entry.term}': ${shortDictionaryName} #${frequencyData.frequency}")
@@ -255,10 +249,10 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                 }
             }
             
-            // Display pitch accent data if available
-            if (pitchShieldContainer != null && pitchValueView != null && dictionaryRepository != null && lifecycleScope != null) {
-                // Initially hide the pitch accent view
-                pitchShieldContainer.visibility = View.GONE
+            // Display pitch accent data using the new custom display
+            if (pitchAccentContainer != null && dictionaryRepository != null && lifecycleScope != null) {
+                // Initially hide the pitch accent display
+                PitchAccentDisplayHelper.hidePitchAccentDisplay(pitchAccentContainer)
                 
                 lifecycleScope.launch {
                     try {
@@ -272,25 +266,26 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
                         // Update UI on the main thread
                         withContext(Dispatchers.Main) {
                             if (pitchAccentData != null) {
-                                // Use the PitchAccentHelper to format the display
-                                PitchAccentHelper.setupPitchAccentView(
+                                // Use the new PitchAccentDisplayHelper to set up the display
+                                PitchAccentDisplayHelper.setupPitchAccentDisplay(
                                     itemView.context,
-                                    pitchValueView,
+                                    pitchAccentContainer,
+                                    entry.reading,
                                     pitchAccentData.pitchAccent
                                 )
                                 
                                 Log.d("DictionaryAdapter", "Displayed pitch accent for '${entry.term}': ${pitchAccentData.pitchAccent}")
                             } else {
-                                // Hide the pitch accent view if we don't have data
-                                pitchShieldContainer.visibility = View.GONE
+                                // Hide the pitch accent display if we don't have data
+                                PitchAccentDisplayHelper.hidePitchAccentDisplay(pitchAccentContainer)
                                 Log.d("DictionaryAdapter", "No pitch accent data available for '${entry.term}'")
                             }
                         }
                     } catch (e: Exception) {
                         Log.e("DictionaryAdapter", "Error retrieving pitch accent data: ${e.message}", e)
                         withContext(Dispatchers.Main) {
-                            // Hide the pitch accent view on error
-                            pitchShieldContainer.visibility = View.GONE
+                            // Hide the pitch accent display on error
+                            PitchAccentDisplayHelper.hidePitchAccentDisplay(pitchAccentContainer)
                         }
                     }
                 }
@@ -503,8 +498,8 @@ class DictionaryMatchAdapter : ListAdapter<DictionaryEntryEntity, DictionaryMatc
             // Reset frequency shield if available
             frequencyShieldContainer?.let { FrequencyShieldHelper.hideFrequencyShield(it) }
             
-            // Reset pitch accent view if available
-            pitchShieldContainer?.visibility = View.GONE
+            // Reset pitch accent display if available
+            pitchAccentContainer?.let { PitchAccentDisplayHelper.hidePitchAccentDisplay(it) }
         }
 
         /**

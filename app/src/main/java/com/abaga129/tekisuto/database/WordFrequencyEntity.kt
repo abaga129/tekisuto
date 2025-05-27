@@ -9,6 +9,7 @@ import java.util.Date
 
 /**
  * Entity for storing word frequency data separate from dictionary entries
+ * Enhanced to support reading-specific frequency entries and display formatting
  */
 @Entity(
     tableName = "word_frequencies",
@@ -22,7 +23,9 @@ import java.util.Date
     ],
     indices = [
         Index("dictionaryId"),
-        Index("word", unique = false)
+        Index("word", unique = false),
+        Index("reading", unique = false),
+        Index(value = ["word", "reading"], unique = false)
     ]
 )
 data class WordFrequencyEntity(
@@ -30,7 +33,9 @@ data class WordFrequencyEntity(
     val id: Long = 0,
     val dictionaryId: Long,
     val word: String,
-    val frequency: Int
+    val reading: String? = null, // Reading for the word (e.g., hiragana for kanji)
+    val frequency: Int, // Numeric frequency value (used as fallback)
+    val displayValue: String? = null // Formatted display value (e.g., "67282㋕")
 )
 
 /**
@@ -47,13 +52,33 @@ interface WordFrequencyDao {
     @androidx.room.Query("SELECT * FROM word_frequencies WHERE dictionaryId = :dictionaryId")
     suspend fun getFrequenciesForDictionary(dictionaryId: Long): List<WordFrequencyEntity>
     
-    @androidx.room.Query("SELECT * FROM word_frequencies WHERE word = :word LIMIT 1")
+    /**
+     * Search for frequency by word and reading (most specific search)
+     */
+    @androidx.room.Query("""
+        SELECT * FROM word_frequencies 
+        WHERE (LOWER(word) = LOWER(:word) OR word = :word) 
+        AND (LOWER(reading) = LOWER(:reading) OR reading = :reading)
+        LIMIT 1
+    """)
+    suspend fun getFrequencyForWordAndReading(word: String, reading: String): WordFrequencyEntity?
+    
+    /**
+     * Search for frequency by word only (fallback search)
+     */
+    @androidx.room.Query("SELECT * FROM word_frequencies WHERE LOWER(word) = LOWER(:word) OR word = :word LIMIT 1")
     suspend fun getFrequencyForWord(word: String): WordFrequencyEntity?
     
+    /**
+     * Search for frequency by reading only (secondary fallback)
+     */
+    @androidx.room.Query("SELECT * FROM word_frequencies WHERE LOWER(reading) = LOWER(:reading) OR reading = :reading LIMIT 1")
+    suspend fun getFrequencyForReading(reading: String): WordFrequencyEntity?
+
     // Improved query with better matching - try both exact match and normalized forms
     @androidx.room.Query("SELECT * FROM word_frequencies WHERE dictionaryId = :dictionaryId AND (LOWER(word) = LOWER(:word) OR word = :word) LIMIT 1")
     suspend fun getFrequencyForWordInDictionary(word: String, dictionaryId: Long): WordFrequencyEntity?
-    
+
     // Try more variations including trimming whitespace
     @androidx.room.Query("SELECT * FROM word_frequencies WHERE dictionaryId = :dictionaryId AND (LOWER(TRIM(word)) = LOWER(TRIM(:word))) LIMIT 1")
     suspend fun getFrequencyForWordTrimmed(word: String, dictionaryId: Long): WordFrequencyEntity?

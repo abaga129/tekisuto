@@ -447,3 +447,34 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
         }
     }
 }
+
+/**
+ * Migration from version 15 to 16 - adds reading and displayValue columns to word_frequencies table
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        try {
+            // Add reading column to word_frequencies table (nullable TEXT)
+            database.execSQL("""
+                ALTER TABLE word_frequencies ADD COLUMN reading TEXT
+            """)
+            
+            // Add displayValue column to word_frequencies table (nullable TEXT)
+            database.execSQL("""
+                ALTER TABLE word_frequencies ADD COLUMN displayValue TEXT
+            """)
+            
+            // Create index for reading column
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_frequencies_reading ON word_frequencies(reading)")
+            
+            // Create composite index for word+reading searches
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_word_frequencies_word_reading ON word_frequencies(word, reading)")
+            
+            Log.d("Migration", "Successfully added reading and displayValue columns to word_frequencies table")
+            
+        } catch (e: Exception) {
+            Log.e("Migration", "Error adding columns to word_frequencies table: ${e.message}", e)
+            throw e
+        }
+    }
+}

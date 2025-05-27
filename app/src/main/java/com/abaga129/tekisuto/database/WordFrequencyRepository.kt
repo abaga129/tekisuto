@@ -38,6 +38,54 @@ class WordFrequencyRepository(context: Context) : BaseRepository(context) {
     }
 
     /**
+     * Enhanced frequency search with three-tier strategy:
+     * 1. Search by word and reading (most specific)
+     * 2. Search by word only
+     * 3. Search by reading only
+     * @param word The word to search for
+     * @param reading The reading to search for (optional)
+     * @return WordFrequencyEntity if found, or null
+     */
+    suspend fun getFrequencyForWordAndReading(word: String, reading: String? = null): WordFrequencyEntity? {
+        return try {
+            Log.d(TAG, "Enhanced frequency search for word='$word', reading='$reading'")
+            
+            var result: WordFrequencyEntity? = null
+            
+            // Strategy 1: Search by both word and reading (most specific)
+            if (!reading.isNullOrBlank()) {
+                result = wordFrequencyDao.getFrequencyForWordAndReading(word, reading)
+                if (result != null) {
+                    Log.d(TAG, "Found frequency by word+reading: word='$word', reading='$reading', frequency=${result.frequency}")
+                    return result
+                }
+            }
+            
+            // Strategy 2: Search by word only
+            result = wordFrequencyDao.getFrequencyForWord(word)
+            if (result != null) {
+                Log.d(TAG, "Found frequency by word only: word='$word', frequency=${result.frequency}")
+                return result
+            }
+            
+            // Strategy 3: Search by reading only (if provided)
+            if (!reading.isNullOrBlank()) {
+                result = wordFrequencyDao.getFrequencyForReading(reading)
+                if (result != null) {
+                    Log.d(TAG, "Found frequency by reading only: reading='$reading', frequency=${result.frequency}")
+                    return result
+                }
+            }
+            
+            Log.d(TAG, "No frequency found for word='$word', reading='$reading'")
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in enhanced frequency search for word=$word, reading=$reading", e)
+            null
+        }
+    }
+
+    /**
      * Gets frequency for a specific word
      * @param word The word to get frequency for
      * @return WordFrequencyEntity for the word, or null if not found
@@ -47,6 +95,20 @@ class WordFrequencyRepository(context: Context) : BaseRepository(context) {
             wordFrequencyDao.getFrequencyForWord(word)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting frequency for word $word", e)
+            null
+        }
+    }
+
+    /**
+     * Gets frequency for a specific reading
+     * @param reading The reading to get frequency for
+     * @return WordFrequencyEntity for the reading, or null if not found
+     */
+    suspend fun getFrequencyForReading(reading: String): WordFrequencyEntity? {
+        return try {
+            wordFrequencyDao.getFrequencyForReading(reading)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting frequency for reading $reading", e)
             null
         }
     }
@@ -98,7 +160,7 @@ class WordFrequencyRepository(context: Context) : BaseRepository(context) {
                 if (sampleEntries.isNotEmpty()) {
                     Log.d(TAG, "Sample frequency entries from dictionary $dictionaryId:")
                     sampleEntries.forEach {
-                        Log.d(TAG, "- Word: '${it.word}', Frequency: ${it.frequency}")
+                        Log.d(TAG, "- Word: '${it.word}', Reading: '${it.reading}', Frequency: ${it.frequency}")
                     }
                 }
 
@@ -160,8 +222,10 @@ class WordFrequencyRepository(context: Context) : BaseRepository(context) {
             if (entries.isNotEmpty()) {
                 val sampleEntry = entries.first()
                 Log.d(TAG, "Sample frequency entry: word='${sampleEntry.word}', " +
+                        "reading='${sampleEntry.reading}', " +
                         "dictionaryId=${sampleEntry.dictionaryId}, " +
-                        "frequency=${sampleEntry.frequency}")
+                        "frequency=${sampleEntry.frequency}, " +
+                        "displayValue='${sampleEntry.displayValue}'")
             }
 
             val result = wordFrequencyDao.insertAll(entries)
