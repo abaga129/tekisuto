@@ -186,6 +186,14 @@ dependencies {
     implementation("androidx.emoji2:emoji2-views-helper:1.4.0")
     implementation("androidx.emoji2:emoji2-bundled:1.4.0")
     
+    // CameraX dependencies for camera OCR
+    val camerax_version = "1.3.1"
+    implementation("androidx.camera:camera-core:${camerax_version}")
+    implementation("androidx.camera:camera-camera2:${camerax_version}")
+    implementation("androidx.camera:camera-lifecycle:${camerax_version}")
+    implementation("androidx.camera:camera-view:${camerax_version}")
+    implementation("androidx.camera:camera-extensions:${camerax_version}")
+    
     kapt("androidx.room:room-compiler:$room_version")  // This is crucial for Room
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

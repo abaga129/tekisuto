@@ -4,6 +4,8 @@
     package="com.abaga129.tekisuto">
 
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+    <!-- Camera permission for camera OCR -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- For saving OCR results -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
@@ -88,6 +90,13 @@
             android:name=".ui.ImageCropActivity"
             android:exported="false"
             android:label="@string/crop_image" />
+            
+        <activity
+            android:name=".ui.CameraCaptureActivity"
+            android:exported="false"
+            android:label="Camera OCR"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Tekisuto.NoActionBar" />
             
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"

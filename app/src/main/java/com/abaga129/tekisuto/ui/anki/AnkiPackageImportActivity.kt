@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Activity for importing words from Anki .apkg files
+ * Activity for importing words from Anki package files (.apkg) and ZIP files containing Anki data
  */
 class AnkiPackageImportActivity : BaseEdgeToEdgeActivity() {
 
@@ -99,7 +99,14 @@ class AnkiPackageImportActivity : BaseEdgeToEdgeActivity() {
     }
     
     private fun openFilePicker() {
-        filePickerLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+        // Support both .apkg and .zip files
+        // .apkg files are essentially zip files, so we include both MIME types
+        filePickerLauncher.launch(arrayOf(
+            "application/zip",           // Standard ZIP files
+            "application/octet-stream",  // Some .apkg files may be detected as this
+            "application/x-zip-compressed", // Alternative ZIP MIME type
+            "*/*"                        // Fallback to allow manual selection
+        ))
     }
     
     private fun handleSelectedFile(uri: Uri) {

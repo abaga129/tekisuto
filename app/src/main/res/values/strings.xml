@@ -78,6 +78,7 @@
     <!-- Popup Menu -->
     <string name="menu_title">Tekisuto Scan</string>
     <string name="perform_ocr">Scan Text (OCR)</string>
+    <string name="camera_ocr">Camera OCR</string>
     <string name="close">Close</string>
     <string name="exit_tekisuto">Exit Tekisuto</string>
 
@@ -244,9 +245,9 @@
     <string name="audio_field">Audio File:</string>
     
     <!-- Anki Package Import -->
-    <string name="import_anki_package_title">Import Anki Package</string>
-    <string name="import_anki_package_description">Import words from an Anki export (.apkg) file. Select the file, choose which field contains the words, and optionally filter by deck.</string>
-    <string name="select_apkg_file">Select .apkg File</string>
+    <string name="import_anki_package_title">Import Words From Anki Package</string>
+    <string name="import_anki_package_description">Import words from an Anki export (.apkg) file or ZIP archive. Select the file, choose which field contains the words, and optionally filter by deck.</string>
+    <string name="select_apkg_file">Select .apkg or .zip File</string>
     <string name="select_word_field">Select Field Containing Words:</string>
     <string name="select_deck_optional">Select Deck (Optional):</string>
     <string name="import_words">Import Words</string>

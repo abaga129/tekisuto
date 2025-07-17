@@ -498,6 +498,13 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             performOcr()
         }
 
+        // Find and setup the Camera OCR button
+        val cameraOcrButton = menuLayout.findViewById<Button>(R.id.btn_camera_ocr)
+        cameraOcrButton?.setOnClickListener {
+            Log.d("AccessibilityOcrService", "Camera OCR button clicked")
+            openCameraOcr()
+        }
+
         // Find and setup the close button
         val closeButton = menuLayout.findViewById<Button>(R.id.btn_close)
         closeButton?.setOnClickListener {
@@ -708,6 +715,56 @@ class AccessibilityOcrService : AccessibilityService(), FloatingButtonHandler.Fl
             }
         } else {
             Log.e("AccessibilityOcrService", "Screenshot capture failed, bitmap is null")
+        }
+    }
+
+    /**
+     * Open camera for OCR capture
+     */
+    private fun openCameraOcr() {
+        Log.d("AccessibilityOcrService", "openCameraOcr() called")
+        
+        // Hide the menu
+        hideMenu()
+        
+        // Store the floating button visibility state
+        val wasButtonVisible = floatingButtonHandler.isVisible()
+        val shouldRestoreButton = wasButtonVisible || 
+                                 (shouldShowFloatingButton(currentPackageName) && 
+                                  prefs.getBoolean(PreferenceKeys.FLOATING_BUTTON_VISIBLE, true))
+        
+        Log.d("AccessibilityOcrService", "Button state before camera: visible=$wasButtonVisible, shouldRestore=$shouldRestoreButton")
+        
+        // Temporarily hide the floating button during camera activity
+        if (floatingButtonHandler.isVisible()) {
+            Log.d("AccessibilityOcrService", "Temporarily hiding floating button for camera")
+            floatingButtonHandler.hideFloatingButton()
+        }
+
+        // Launch the camera capture activity
+        val intent = Intent(this, com.abaga129.tekisuto.ui.CameraCaptureActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            // Pass current profile settings
+            val profileId = currentProfile?.id ?: -1L
+            putExtra(com.abaga129.tekisuto.ui.CameraCaptureActivity.EXTRA_PROFILE_ID, profileId)
+            
+            // Pass flag to indicate if button should be restored
+            putExtra(com.abaga129.tekisuto.ui.CameraCaptureActivity.EXTRA_RESTORE_FLOATING_BUTTON, shouldRestoreButton)
+        }
+
+        try {
+            Log.d("AccessibilityOcrService", "Starting CameraCaptureActivity")
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("AccessibilityOcrService", "Error starting camera activity: ${e.message}")
+            
+            // Restore button if something went wrong
+            if (shouldRestoreButton) {
+                mainHandler.postDelayed({
+                    floatingButtonHandler.createFloatingButton()
+                }, 300)
+            }
         }
     }
 

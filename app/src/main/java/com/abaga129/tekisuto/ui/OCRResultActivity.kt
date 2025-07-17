@@ -260,6 +260,12 @@ class OCRResultActivity : BaseEdgeToEdgeActivity(),
         ocrLanguage = intent.getStringExtra("OCR_LANGUAGE")
         profileId = intent.getLongExtra("PROFILE_ID", -1L)
         
+        // Log received data for debugging
+        Log.d(TAG, "Received OCR text length: ${ocrText.length}")
+        Log.d(TAG, "Received OCR text preview: ${ocrText.take(100)}")
+        Log.d(TAG, "Received screenshot path: $screenshotPath")
+        Log.d(TAG, "Screenshot path exists: ${screenshotPath?.let { File(it).exists() }}")
+        
         // Get floating button restoration flag
         shouldRestoreFloatingButton = intent.getBooleanExtra("RESTORE_FLOATING_BUTTON", false)
         Log.d(TAG, "Should restore floating button: $shouldRestoreFloatingButton")

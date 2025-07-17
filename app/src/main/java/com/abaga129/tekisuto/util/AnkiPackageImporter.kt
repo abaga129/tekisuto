@@ -13,9 +13,10 @@ import java.util.zip.ZipEntry
 import android.database.sqlite.SQLiteDatabase
 
 /**
- * Utility for importing words from Anki .apkg files
+ * Utility for importing words from Anki package files (.apkg) and ZIP archives containing Anki data
  * 
- * .apkg files are zip files containing a SQLite database (collection.anki2) and media files
+ * .apkg files are ZIP files containing a SQLite database (collection.anki2 or collection.anki21) and media files
+ * This importer can handle both .apkg files and regular .zip files that contain Anki database files
  */
 class AnkiPackageImporter(
     private val context: Context,
@@ -30,9 +31,9 @@ class AnkiPackageImporter(
     }
     
     /**
-     * Import words from an Anki package (.apkg) file
+     * Import words from an Anki package (.apkg) file or ZIP archive containing Anki data
      * 
-     * @param uri URI of the .apkg file to import
+     * @param uri URI of the .apkg or .zip file to import
      * @return Pair<List<String>, List<String>> - first is field names, second is deck names
      */
     suspend fun extractFieldsAndDecks(uri: Uri): Pair<List<String>, List<String>> = withContext(Dispatchers.IO) {
@@ -71,9 +72,9 @@ class AnkiPackageImporter(
     }
     
     /**
-     * Import words from an Anki package (.apkg) file
+     * Import words from an Anki package (.apkg) file or ZIP archive containing Anki data
      * 
-     * @param uri URI of the .apkg file to import
+     * @param uri URI of the .apkg or .zip file to import
      * @param fieldIndex The index of the field to import
      * @param deckName Optional deck name to filter by (null for all decks)
      * @return Number of words imported
@@ -177,7 +178,7 @@ class AnkiPackageImporter(
                 
                 Log.e(TAG, "File does not appear to be a valid ZIP file (missing PK header)")
                 inputStream.close()
-                throw IllegalStateException("The selected file is not a valid Anki package (.apkg).")
+                throw IllegalStateException("The selected file is not a valid Anki package (.apkg) or ZIP archive.")
             }
             
             // Reset the stream and open as a ZIP
@@ -254,11 +255,11 @@ class AnkiPackageImporter(
                 legacyInputStream.close()
             }
             
-            // If we didn't find either database file, this isn't a valid .apkg file
+            // If we didn't find either database file, this isn't a valid Anki package or ZIP archive
             if (!foundAnkiDb) {
                 Log.e(TAG, "No Anki database file found in the ZIP archive")
                 throw IllegalStateException(
-                    "The selected file doesn't appear to be a valid Anki package. " +
+                    "The selected file doesn't appear to be a valid Anki package or ZIP archive containing Anki data. " +
                     "It doesn't contain a collection.anki21 or collection.anki2 database file."
                 )
             }
@@ -274,8 +275,8 @@ class AnkiPackageImporter(
                        e.message?.contains("CRC") == true ||
                        e.message?.contains("corrupted") == true) {
                 throw IllegalStateException(
-                    "The file appears to be corrupted or not a valid Anki package. " +
-                    "Please try exporting it again from Anki."
+                    "The file appears to be corrupted or not a valid Anki package or ZIP archive. " +
+                    "Please try exporting it again from Anki or check that the ZIP file contains Anki data."
                 )
             }
             

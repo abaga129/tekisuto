@@ -42,6 +42,23 @@
             android:textAllCaps="false"
             style="@style/Widget.Tekisuto.Button" />
 
+        <!-- Camera OCR Button -->
+        <Button
+            android:id="@+id/btn_camera_ocr"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/camera_ocr"
+            android:drawableStart="@drawable/ic_camera_small"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:layout_marginBottom="12dp"
+            android:backgroundTint="?attr/colorSecondary"
+            android:textColor="@android:color/white"
+            android:minHeight="48dp"
+            android:textSize="16sp"
+            android:textAllCaps="false"
+            style="@style/Widget.Tekisuto.Button" />
+
         <Button
             android:id="@+id/btn_close"
             android:layout_width="match_parent"
