@@ -4,6 +4,12 @@
 
 Tekisuto ("text" in Japanese) is an OCR-powered dictionary lookup tool for language learners. It lets you easily scan text from any app, look up words in your dictionaries, and export them to AnkiDroid for flashcard study.
 
+## Support Development
+
+Any donation is appreciated.  I'll be sure to put it towards working on Tekisuto!
+
+[![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/abaga129)
+
 ## OCR Backends
 
 Tekisuto offers multiple OCR (Optical Character Recognition) options to suit your needs:
