@@ -2,6 +2,7 @@ package com.abaga129.tekisuto
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,10 +10,13 @@ import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.widget.Toolbar
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.abaga129.tekisuto.database.DictionaryRepository
@@ -21,30 +25,53 @@ import com.abaga129.tekisuto.ui.BaseEdgeToEdgeActivity
 import com.abaga129.tekisuto.ui.anki.AnkiDroidConfigActivity
 import com.abaga129.tekisuto.ui.profile.ProfileManagerActivity
 import com.abaga129.tekisuto.ui.settings.SettingsActivity
+import com.abaga129.tekisuto.util.AnkiDroidHelper
 import com.abaga129.tekisuto.viewmodel.MainViewModel
 import com.abaga129.tekisuto.viewmodel.ParserViewModel
 import com.abaga129.tekisuto.viewmodel.ProfileViewModel
+import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.launch
 
-class MainActivity : BaseEdgeToEdgeActivity() {
+class MainActivity : BaseEdgeToEdgeActivity(), NavigationView.OnNavigationItemSelectedListener {
 
     private lateinit var viewModel: MainViewModel
     private lateinit var profileViewModel: ProfileViewModel
     private lateinit var statusTextView: TextView
-    private lateinit var settingsButton: Button
-    private lateinit var manageDictionariesButton: Button
-    private lateinit var browseDictionaryButton: Button
-    private lateinit var ocrSettingsButton: Button
-    private lateinit var configureAnkiButton: Button
-    private lateinit var manageProfilesButton: Button
-    private lateinit var showFloatingButtonButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var dictionaryInfoTextView: TextView
     private lateinit var currentProfileTextView: TextView
+    private lateinit var toolbar: Toolbar
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var navigationView: NavigationView
+    private lateinit var ankiDroidHelper: AnkiDroidHelper
+
+    companion object {
+        private const val ANKIDROID_PERMISSION_REQUEST = 101
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState) // This calls enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+        
+        // Initialize AnkiDroid helper
+        ankiDroidHelper = AnkiDroidHelper(this)
+        
+        // Set up the toolbar
+        toolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        
+        // Set up the navigation drawer
+        drawerLayout = findViewById(R.id.drawer_layout)
+        navigationView = findViewById(R.id.nav_view)
+        navigationView.setNavigationItemSelectedListener(this)
+        
+        // Set up the hamburger icon and drawer toggle
+        val toggle = ActionBarDrawerToggle(
+            this, drawerLayout, toolbar,
+            R.string.navigation_drawer_open, R.string.navigation_drawer_close
+        )
+        drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
         
         // Apply insets to the root view to avoid status bar overlap
         applyInsetsToView(android.R.id.content)
@@ -55,15 +82,9 @@ class MainActivity : BaseEdgeToEdgeActivity() {
 
         // Initialize repository from application
         val repository = DictionaryRepository(applicationContext)
+        
         // Initialize UI components
         statusTextView = findViewById(R.id.status_text_view)
-        settingsButton = findViewById(R.id.settings_button)
-        manageDictionariesButton = findViewById(R.id.manage_dictionaries_button)
-        browseDictionaryButton = findViewById(R.id.browse_dictionary_button)
-        ocrSettingsButton = findViewById(R.id.ocr_settings_button)
-        configureAnkiButton = findViewById(R.id.configure_anki_button)
-        manageProfilesButton = findViewById(R.id.manage_profiles_button)
-        showFloatingButtonButton = findViewById(R.id.show_floating_button)
         progressBar = findViewById(R.id.import_progress_bar)
         dictionaryInfoTextView = findViewById(R.id.dictionary_info_text_view)
         currentProfileTextView = findViewById(R.id.current_profile_text)
@@ -71,47 +92,9 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         // Hide progress bar initially
         progressBar.visibility = View.GONE
 
-        // Set click listener for the settings button
-        settingsButton.setOnClickListener {
-            openAccessibilitySettings()
-        }
-
-        // Set click listener for manage dictionaries button
-        manageDictionariesButton.setOnClickListener {
-            openDictionaryManager()
-        }
-        
-        // Set click listener for the browse dictionary button
-        browseDictionaryButton.setOnClickListener {
-            openDictionaryBrowser()
-        }
-        
-        // Set click listener for the OCR settings button
-        ocrSettingsButton.setOnClickListener {
-            openOcrSettings()
-        }
-        
-        // Set click listener for the Configure AnkiDroid button
-        configureAnkiButton.setOnClickListener {
-            openAnkiConfig()
-        }
-        
-        // Set click listener for the Manage Profiles button
-        manageProfilesButton.setOnClickListener {
-            openProfileManager()
-        }
-        
-        // Set click listener for the Show Floating Button button
-        showFloatingButtonButton.setOnClickListener {
-            showFloatingButtonIfHidden()
-            Toast.makeText(this, "Floating button shown", Toast.LENGTH_SHORT).show()
-        }
-
         // Observe accessibility service status
         viewModel.isAccessibilityServiceEnabled.observe(this) { isEnabled ->
             updateStatusText(isEnabled)
-            // Update the Show Floating Button button state based on service status
-            showFloatingButtonButton.isEnabled = isEnabled
         }
 
         // Observe import progress
@@ -163,6 +146,9 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         // Set the ProfileViewModel to the service if it's running
         setProfileViewModelToService()
         
+        // Check AnkiDroid permission status
+        checkAnkiDroidPermission()
+        
         // Add a delay to ensure the service status is properly checked
         Handler(Looper.getMainLooper()).postDelayed({
             // Show the floating button if the service is enabled
@@ -172,6 +158,55 @@ class MainActivity : BaseEdgeToEdgeActivity() {
                 android.util.Log.d("MainActivity", "Attempting to show floating button after delay")
             }
         }, 1000) // 1 second delay
+        
+        // Update navigation menu state
+        updateNavigationMenuState()
+    }
+
+    /**
+     * Check AnkiDroid permission status and request if needed
+     */
+    private fun checkAnkiDroidPermission() {
+        try {
+            // First check if AnkiDroid is installed
+            if (!ankiDroidHelper.isApiAvailable()) {
+                android.util.Log.d("MainActivity", "AnkiDroid not installed")
+                return
+            }
+            
+            // Check if permission is needed
+            if (ankiDroidHelper.shouldRequestPermission()) {
+                android.util.Log.d("MainActivity", "AnkiDroid permission needed, requesting...")
+                ankiDroidHelper.requestPermission(this, ANKIDROID_PERMISSION_REQUEST)
+            } else {
+                android.util.Log.d("MainActivity", "AnkiDroid permission already granted")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error checking AnkiDroid permission", e)
+        }
+    }
+
+    /**
+     * Handle permission request results
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        when (requestCode) {
+            ANKIDROID_PERMISSION_REQUEST -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    android.util.Log.d("MainActivity", "AnkiDroid permission granted")
+                    Toast.makeText(this, "AnkiDroid permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    android.util.Log.d("MainActivity", "AnkiDroid permission denied")
+                    Toast.makeText(this, "AnkiDroid permission denied. You can enable it later in AnkiDroid settings.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
     
     private val serviceCheckHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -199,20 +234,48 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         serviceCheckHandler.removeCallbacks(serviceCheckRunnable)
     }
     
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
+        } else {
+            super.onBackPressed()
+        }
     }
     
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_ocr_settings -> {
-                val intent = Intent(this, SettingsActivity::class.java)
-                startActivity(intent)
-                true
+    override fun onNavigationItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.nav_accessibility_settings -> {
+                openAccessibilitySettings()
             }
-            else -> super.onOptionsItemSelected(item)
+            R.id.nav_manage_dictionaries -> {
+                openDictionaryManager()
+            }
+            R.id.nav_browse_dictionary -> {
+                openDictionaryBrowser()
+            }
+            R.id.nav_ocr_settings -> {
+                openOcrSettings()
+            }
+            R.id.nav_configure_anki -> {
+                openAnkiConfig()
+            }
+            R.id.nav_manage_profiles -> {
+                openProfileManager()
+            }
+            R.id.nav_show_floating_button -> {
+                // Check if service is enabled before allowing this action
+                if (viewModel.isAccessibilityServiceEnabled.value == true) {
+                    showFloatingButtonIfHidden()
+                    Toast.makeText(this, "Floating button shown", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Please enable the accessibility service first", Toast.LENGTH_LONG).show()
+                }
+            }
         }
+        
+        drawerLayout.closeDrawer(GravityCompat.START)
+        return true
     }
 
     private fun updateStatusText(isEnabled: Boolean) {
@@ -230,8 +293,14 @@ class MainActivity : BaseEdgeToEdgeActivity() {
         }
         statusTextView.setTextColor(resources.getColor(colorRes, theme))
         
-        // Update Show Floating Button button enabled state
-        showFloatingButtonButton.isEnabled = isEnabled
+        // Update navigation menu state
+        updateNavigationMenuState()
+    }
+    
+    private fun updateNavigationMenuState() {
+        val menu = navigationView.menu
+        val showFloatingButtonItem = menu.findItem(R.id.nav_show_floating_button)
+        showFloatingButtonItem?.isEnabled = viewModel.isAccessibilityServiceEnabled.value == true
     }
 
     private fun openAccessibilitySettings() {

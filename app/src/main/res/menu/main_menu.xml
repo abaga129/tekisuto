@@ -3,8 +3,45 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_accessibility_settings"
+        android:title="@string/open_accessibility_settings"
+        android:icon="@android:drawable/ic_menu_preferences"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_manage_dictionaries"
+        android:title="@string/manage_dictionaries"
+        android:icon="@android:drawable/ic_menu_edit"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_browse_dictionary"
+        android:title="@string/browse_dictionary"
+        android:icon="@android:drawable/ic_menu_search"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_ocr_settings"
         android:title="@string/ocr_settings"
+        android:icon="@android:drawable/ic_menu_manage"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_configure_anki"
+        android:title="@string/configure_anki"
+        android:icon="@android:drawable/ic_menu_save"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_manage_profiles"
+        android:title="@string/manage_profiles"
+        android:icon="@android:drawable/ic_menu_my_calendar"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_show_floating_button"
+        android:title="@string/show_floating_button"
+        android:icon="@android:drawable/ic_menu_view"
         app:showAsAction="never" />
 
 </menu>

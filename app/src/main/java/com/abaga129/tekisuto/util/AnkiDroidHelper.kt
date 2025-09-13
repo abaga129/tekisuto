@@ -1,23 +1,30 @@
 package com.abaga129.tekisuto.util
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.abaga129.tekisuto.database.DictionaryRepository
 import com.abaga129.tekisuto.database.ProfileEntity
 import com.ichi2.anki.api.AddContentApi
+import com.ichi2.anki.api.AddContentApi.READ_WRITE_PERMISSION
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 /**
  * Helper class for AnkiDroid integration
+ * Based on the official AnkiDroid API sample
  */
 class AnkiDroidHelper(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(ANKI_PREFS, Context.MODE_PRIVATE)
@@ -64,11 +71,53 @@ class AnkiDroidHelper(private val context: Context) {
     }
 
     /**
-     * Check if AnkiDroid is installed and API is available
+     * Whether or not the API is available to use.
+     * The API could be unavailable if AnkiDroid is not installed or the user explicitly disabled the API
+     * @return true if the API is available to use
+     */
+    fun isApiAvailable(): Boolean {
+        return AddContentApi.getAnkiDroidPackageName(context) != null
+    }
+
+    /**
+     * Whether or not we should request full access to the AnkiDroid API
+     * Based on the official AnkiDroid API sample
+     */
+    fun shouldRequestPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return false
+        }
+        return ContextCompat.checkSelfPermission(context, READ_WRITE_PERMISSION) != PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Request permission from the user to access the AnkiDroid API (for SDK 23+)
+     * @param callbackActivity An Activity which implements onRequestPermissionsResult()
+     * @param callbackCode The callback code to be used in onRequestPermissionsResult()
+     */
+    fun requestPermission(callbackActivity: Activity, callbackCode: Int) {
+        ActivityCompat.requestPermissions(callbackActivity, arrayOf(READ_WRITE_PERMISSION), callbackCode)
+    }
+
+    /**
+     * Check if AnkiDroid is installed and permissions are granted
+     * This combines installation check with permission check
      */
     fun isAnkiDroidAvailable(): Boolean {
-//        return api.isApiAvailable(context)
-        return AddContentApi.getAnkiDroidPackageName(context) != null
+        // First check if AnkiDroid is installed
+        if (!isApiAvailable()) {
+            Log.d(TAG, "AnkiDroid not installed")
+            return false
+        }
+        
+        // Then check if permission is granted
+        if (shouldRequestPermission()) {
+            Log.d(TAG, "AnkiDroid permission not granted")
+            return false
+        }
+        
+        Log.d(TAG, "AnkiDroid available and permission granted")
+        return true
     }
 
     /**
@@ -231,7 +280,7 @@ class AnkiDroidHelper(private val context: Context) {
         pitchAccent: String? = null
     ): Boolean {
         if (!isAnkiDroidAvailable()) {
-            Log.e(TAG, "AnkiDroid not available")
+            Log.e(TAG, "AnkiDroid not available or permission not granted")
             return false
         }
 

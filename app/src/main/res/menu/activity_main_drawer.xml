@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn="navigation_view">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_accessibility_settings"
+            android:icon="@android:drawable/ic_menu_preferences"
+            android:title="@string/open_accessibility_settings" />
+            
+        <item
+            android:id="@+id/nav_manage_dictionaries"
+            android:icon="@android:drawable/ic_menu_edit"
+            android:title="@string/manage_dictionaries" />
+            
+        <item
+            android:id="@+id/nav_browse_dictionary"
+            android:icon="@android:drawable/ic_menu_search"
+            android:title="@string/browse_dictionary" />
+
+        <item
+            android:id="@+id/nav_ocr_settings"
+            android:icon="@android:drawable/ic_menu_manage"
+            android:title="@string/ocr_settings" />
+            
+        <item
+            android:id="@+id/nav_configure_anki"
+            android:icon="@android:drawable/ic_menu_save"
+            android:title="@string/configure_anki" />
+            
+        <item
+            android:id="@+id/nav_manage_profiles"
+            android:icon="@android:drawable/ic_menu_my_calendar"
+            android:title="@string/manage_profiles" />
+    </group>
+
+    <item android:title="Floating Button">
+        <menu>
+            <item
+                android:id="@+id/nav_show_floating_button"
+                android:icon="@android:drawable/ic_menu_view"
+                android:title="@string/show_floating_button" />
+        </menu>
+    </item>
+
+</menu>

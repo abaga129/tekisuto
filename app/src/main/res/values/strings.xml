@@ -15,6 +15,10 @@
     <string name="open_ocr_button">Open OCR button</string>
     <string name="show_floating_button">Show Floating Button</string>
 
+    <!-- Navigation Drawer -->
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+
     <!-- Accessibility Service -->
     <string name="accessibility_service_description">Provides OCR functionality for any screen content via a movable floating button</string>
     <string name="accessibility_service_summary">Use the floating button to scan any text on screen</string>
